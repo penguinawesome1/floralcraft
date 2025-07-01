@@ -5,61 +5,14 @@ pub use crate::rendering::assets::*;
 pub use crate::rendering::isometric_projection::*;
 
 use macroquad::prelude::{ Texture2D, draw_texture, WHITE };
-use itertools::iproduct;
-use crate::terrain::{
-    Block,
-    BlockPosition,
-    BlockRenderData,
-    Chunk,
-    CHUNK_WIDTH,
-    CHUNK_HEIGHT,
-    CHUNK_DEPTH,
-};
+use crate::terrain::block::{ Block, BlockPosition };
+use crate::terrain::chunk::{ Chunk, ChunkPosition };
+use crate::terrain::World;
 use crate::config::CONFIG;
 use crate::game::physics::Position3D;
 use crate::game::player::{ PlayerFrameKey, Player };
-use crate::terrain_management::MouseTargets;
+use crate::terrain_management::{ WorldLogic, MouseTargets, BlockRenderData };
 
-/// Generates an option with block name and screen position given a block position.
-/// Ensures the block is visible and updates the target hover height.
-///
-/// # Examples
-///
-/// ```
-/// use floralcraft::terrain::{ ChunkPosition, BlockPosition };
-/// use floralcraft::terrain::Block;
-/// use floralcraft::terrain::chunk::Chunk;
-///
-/// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
-/// let chunk: Chunk = Chunk::new(chunk_pos);
-/// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-///
-/// if let Some(_) = chunk.get_block_render_data(pos, None) {
-///     panic!();
-/// }
-/// ```
-// pub fn get_block_render_data(
-//     &self,
-//     pos: BlockPosition,
-//     target_solid: Option<BlockPosition>
-// ) -> Option<BlockRenderData> {
-//     self.is_block_exposed(pos)
-//         .filter(|&is_exposed| is_exposed)
-//         .and_then(|_| self.get_block_name(pos))
-//         .filter(|block_name| block_name.definition().is_visible())
-//         .map(|block_name| {
-//             let world_pos = self.local_to_global_pos(pos);
-//             let is_target = target_solid.map_or(false, |target| target == world_pos);
-//             BlockRenderData { block_name, world_pos, is_target }
-//         })
-// }
-// const fn local_to_global_pos(&self, pos: BlockPosition) -> BlockPosition {
-//     BlockPosition::new(
-//         self.pos.x * (CHUNK_WIDTH as i32) + pos.x,
-//         self.pos.y * (CHUNK_HEIGHT as i32) + pos.y,
-//         pos.z
-//     )
-// }
 pub struct Renderer {
     assets: Assets,
 }
@@ -77,12 +30,13 @@ impl Renderer {
         &mut self,
         player: &Player,
         chunks: &[&Chunk],
+        world_logic: &WorldLogic,
         targets: Option<MouseTargets>
     ) {
         let target_solid: Option<BlockPosition> = targets.map(|t| t.solid);
 
         for &chunk in chunks {
-            self.draw_chunk(chunk, target_solid).await;
+            self.draw_chunk(world_logic, chunk.pos, target_solid).await;
         }
 
         self.draw_player(player.hitbox.pos, player.image_name).await;
@@ -96,24 +50,27 @@ impl Renderer {
         ).await;
     }
 
-    async fn draw_chunk(&mut self, chunk: &Chunk, target_solid: Option<BlockPosition>) {
-        for (x, y, z) in iproduct!(
-            0..CHUNK_WIDTH as i32,
-            0..CHUNK_HEIGHT as i32,
-            0..CHUNK_DEPTH as i32
-        ) {
-            let pos: BlockPosition = BlockPosition::new(x, y, z);
+    async fn draw_chunk(
+        &mut self,
+        world_logic: &WorldLogic,
+        chunk_pos: ChunkPosition,
+        target_solid: Option<BlockPosition>
+    ) {
+        let chunk_block_pos: BlockPosition = World::chunk_to_block_pos(chunk_pos);
 
-            // if let Some(data) = chunk.get_block_render_data(pos, target_solid) {
-            //     self.draw_block(data).await;
-            // }
+        for pos in Chunk::chunk_coords() {
+            let world_pos: BlockPosition = chunk_block_pos + pos;
+
+            if let Some(data) = world_logic.block_render_data(world_pos, target_solid) {
+                self.draw_block(data).await;
+            }
         }
     }
 
     async fn draw_block(&mut self, data: BlockRenderData) {
-        let screen_pos: Position3D = PROJECTION.world_to_screen(data.world_pos);
+        let screen_pos: Position3D = PROJECTION.world_to_screen(data.pos);
         self.draw(
-            ImageKey::Block(data.block_name),
+            ImageKey::Block(data.block),
             screen_pos.x,
             screen_pos.y -
                 screen_pos.z -

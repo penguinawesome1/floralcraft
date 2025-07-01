@@ -8,7 +8,7 @@ grass = "./img/blocks/grass.png"
 dirt = "./img/blocks/dirt.png"
 stone = "./img/blocks/stone.png"
 bedrock = "./img/blocks/test.png"
-missing = "./img/blocks/test.png"
+missing = "./img/blocks/sunflower.png"
 
 [player]
 game_mode = "creative"
@@ -20,7 +20,7 @@ stop_threshold = 0.01
 camera_zoom = 2.5
 
 [world]
-render_distance = 0
+render_distance = 1
 simulation_distance = 0
 num_rotations_90_deg_clockwise = 0
 target_hover_height = 5.0
@@ -30,7 +30,7 @@ world_mode = "normal"
 seed = 1
 dirt_height = 4
 grass_threshold = 0.2
-minimum_air_height = 1
+minimum_air_height = 32
 cave_threshold = -0.5
 
 [world.generation.base_noise]

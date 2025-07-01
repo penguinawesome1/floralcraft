@@ -1,146 +1,145 @@
-// use crate::terrain::{ Block, BlockPosition };
+use serde::{ Serialize, Deserialize };
+use crate::terrain::section::Section;
+use crate::terrain::{ Block, BlockPosition };
 
-// pub const SUBCHUNK_WIDTH: u32 = 16;
-// pub const SUBCHUNK_HEIGHT: u32 = 16;
-// pub const SUBCHUNK_DEPTH: u32 = 16;
-// pub const SUBCHUNK_VOLUME: usize = (SUBCHUNK_WIDTH * SUBCHUNK_HEIGHT * SUBCHUNK_DEPTH) as usize;
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Subchunk {
+    blocks: Option<Section>,
+    sky_light: Option<Section>,
+    block_light: Option<Section>,
+    exposed_blocks: Option<Section>,
+}
 
-// pub struct Subchunk {
-//     palette: Vec<Block>,
-//     data: Vec<u64>,
-//     bits_per_block: u8,
-// }
+impl Subchunk {
+    /// Create a new zeroed out subchunk.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use floralcraft::terrain::subchunk::Subchunk;
+    /// use floralcraft::terrain::block::{ Block, BlockPosition };
+    ///
+    /// let mut subchunk: Subchunk = Subchunk::new();
+    /// let pos: BlockPosition = BlockPosition::new(5, 5, 5);
+    ///
+    /// subchunk.set_block(pos, Block::Dirt);
+    /// assert_eq!(subchunk.block(pos), Block::Dirt);
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            blocks: None,
+            sky_light: None,
+            block_light: None,
+            exposed_blocks: None,
+        }
+    }
 
-// impl Subchunk {
-//     pub fn new(block: Block) -> Self {
-//         let bits_per_block: u8 = 4;
-//         let mut palette: Vec<Block> = Vec::with_capacity(16);
-//         palette.push(block);
+    /// Gets the block given its sub position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use floralcraft::terrain::subchunk::Subchunk;
+    /// use floralcraft::terrain::block::{ Block, BlockPosition };
+    ///
+    /// let mut subchunk: Subchunk = Subchunk::new();
+    /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
+    ///
+    /// subchunk.set_block(pos, Block::Dirt);
+    /// let block: Block = subchunk.block(pos);
+    ///
+    /// assert_eq!(block, Block::Dirt);
+    /// ```
+    pub fn block(&self, pos: BlockPosition) -> Block {
+        Block::from_u32(self.blocks.as_ref().map_or(0, |section| section.item(pos)) as u32)
+    }
 
-//         let data_len: usize = ((SUBCHUNK_VOLUME as usize) * (bits_per_block as usize) + 63) / 64;
-//         let data: Vec<u64> = vec![0; data_len];
+    /// Sets block given its sub position.
+    pub fn set_block(&mut self, pos: BlockPosition, block: Block) {
+        Self::set_section_item(&mut self.blocks, pos, block, 4);
+    }
 
-//         Self { palette, data, bits_per_block }
-//     }
+    /// Gets skylight given its sub position.
+    pub fn sky_light(&self, pos: BlockPosition) -> u64 {
+        self.sky_light.as_ref().map_or(0, |section| section.item(pos))
+    }
 
-//     pub fn get_block(&self, pos: BlockPosition) -> Block {
-//         let block_index: usize = Self::get_block_index(pos);
-//         let palette_index: usize = self.get_palette_index(block_index);
-//         self.palette[palette_index]
-//     }
+    /// Sets skylight given its sub position.
+    pub fn set_sky_light(&mut self, pos: BlockPosition, value: u8) {
+        Self::set_section_item(&mut self.sky_light, pos, value, 4);
+    }
 
-//     pub fn set_block(&mut self, pos: BlockPosition, block: Block) {
-//         let block_index: usize = Self::get_block_index(pos);
+    /// Gets block light given its sub position.
+    pub fn block_light(&self, pos: BlockPosition) -> u64 {
+        self.block_light.as_ref().map_or(0, |section| section.item(pos))
+    }
 
-//         if let Some(palette_index) = self.palette.iter().position(|&id| id == block) {
-//             self.set_palette_index(block_index, palette_index);
-//             return;
-//         }
+    /// Sets block light given its sub position.
+    pub fn set_block_light(&mut self, pos: BlockPosition, value: u8) {
+        Self::set_section_item(&mut self.block_light, pos, value, 4);
+    }
 
-//         self.palette.push(block);
+    /// Gets if block is exposed given its sub position.
+    pub fn block_exposed(&self, pos: BlockPosition) -> bool {
+        self.exposed_blocks.as_ref().map_or(0, |section| section.item(pos)) != 0
+    }
 
-//         let required_bits: u8 = (self.palette.len() as f64).log2().ceil() as u8;
-//         if required_bits > self.bits_per_block {
-//             self.repack(required_bits);
-//         }
-//     }
+    /// Sets if block is exposed given its sub position.
+    pub fn set_block_exposed(&mut self, pos: BlockPosition, value: bool) {
+        Self::set_section_item(&mut self.exposed_blocks, pos, value, 4);
+    }
 
-//     pub fn is_empty(&self) -> bool {
-//         self.palette.len() == 1 && self.palette[0] == Block::Air
-//     }
+    /// Returns a bool for if all sections are empty.
+    pub fn is_empty(&self) -> bool {
+        self.blocks.is_none()
+    }
 
-//     fn get_block_index(pos: BlockPosition) -> usize {
-//         debug_assert!(
-//             pos.x < (SUBCHUNK_WIDTH as i32) &&
-//                 pos.y < (SUBCHUNK_HEIGHT as i32) &&
-//                 pos.z < (SUBCHUNK_DEPTH as i32),
-//             "Out of bounds for index access in subchunk: {:?}",
-//             pos
-//         );
-//         (pos.x as usize) * ((SUBCHUNK_HEIGHT * SUBCHUNK_DEPTH) as usize) +
-//             (pos.y as usize) * (SUBCHUNK_DEPTH as usize) +
-//             (pos.z as usize)
-//     }
+    fn set_section_item<T>(
+        section_option: &mut Option<Section>,
+        pos: BlockPosition,
+        value: T,
+        bits_per_item: u8
+    )
+        where T: Into<u64>
+    {
+        let value_u64: u64 = value.into();
+        if value_u64 == 0 && section_option.is_none() {
+            return; // return is placement is redundant
+        }
 
-//     fn get_palette_index(&self, block_index: usize) -> usize {
-//         let bit_offset: usize = block_index * (self.bits_per_block as usize);
-//         let block_index: usize = bit_offset / 64;
-//         let offset: usize = bit_offset % 64;
+        let section: &mut Section = section_option.get_or_insert_with(
+            || Section::new(bits_per_item) // create new section if needed
+        );
+        section.set_item(pos, value_u64);
 
-//         let mask: u64 = (1u64 << self.bits_per_block) - 1;
-//         ((self.data[block_index] >> offset) & mask) as usize
-//     }
+        if section.is_empty() {
+            *section_option = None; // convert empty section to none
+        }
+    }
+}
 
-//     fn set_palette_index(&mut self, block_index: usize, palette_index: usize) {
-//         let bit_offset: usize = block_index * (self.bits_per_block as usize);
-//         let block_index: usize = bit_offset / 64;
-//         let offset: usize = bit_offset % 64;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::IVec3;
 
-//         let clear_mask: u64 = !(((1u64 << self.bits_per_block) - 1) << offset);
-//         self.data[block_index] &= clear_mask; // clear old bit
+    #[test]
+    fn test_new_is_empty() {
+        let subchunk: Subchunk = Subchunk::new();
+        assert!(subchunk.is_empty());
+    }
 
-//         let value_to_set: u64 = (palette_index as u64) << offset;
-//         self.data[block_index] |= value_to_set; // set new bit
-//     }
+    #[test]
+    fn test_set_and_get_block() {
+        let mut subchunk: Subchunk = Subchunk::new();
+        let pos_1: IVec3 = IVec3::new(15, 1, 1);
+        let pos_2: IVec3 = IVec3::new(3, 0, 2);
 
-//     fn repack(&mut self, new_bits_per_block: u8) {
-//         debug_assert!(
-//             self.bits_per_block <= new_bits_per_block,
-//             "bits per block should not be updated"
-//         );
+        subchunk.set_block(pos_1, Block::Dirt);
+        subchunk.set_block(pos_1, Block::Grass);
+        subchunk.set_block(pos_2, Block::Air);
 
-//         let old_bits_per_block: u8 = self.bits_per_block;
-//         let old_data: Vec<u64> = std::mem::take(&mut self.data);
-
-//         let new_data_len: usize =
-//             ((SUBCHUNK_VOLUME as usize) * (new_bits_per_block as usize) + 63) / 64;
-//         let mut new_data: Vec<u64> = vec![0; new_data_len];
-
-//         let old_mask: u64 = (1u64 << old_bits_per_block).wrapping_sub(1);
-
-//         for i in 0..SUBCHUNK_VOLUME {
-//             let old_bit_offset: usize = i * (old_bits_per_block as usize);
-//             let old_block_index: usize = old_bit_offset / 64;
-//             let old_offset: usize = old_bit_offset % 64;
-
-//             let mut palette_index: u64 = (old_data[old_block_index] >> old_offset) & old_mask;
-
-//             let bits_remaining_in_u64: usize = 64 - old_offset;
-//             if (old_bits_per_block as usize) > bits_remaining_in_u64 {
-//                 let bits_from_next_u64: usize =
-//                     (old_bits_per_block as usize) - bits_remaining_in_u64;
-
-//                 if old_block_index + 1 < old_data.len() {
-//                     let next_u64_part: u64 =
-//                         old_data[old_block_index + 1] &
-//                         (1u64 << bits_from_next_u64).wrapping_sub(1);
-//                     palette_index |= next_u64_part << bits_remaining_in_u64;
-//                 }
-//             }
-
-//             let new_bit_offset: usize = i * (new_bits_per_block as usize);
-//             let new_block_index: usize = new_bit_offset / 64;
-//             let new_offset: usize = new_bit_offset % 64;
-
-//             let value_to_write: u64 = palette_index;
-//             let new_mask: u64 = (1u64 << new_bits_per_block).wrapping_sub(1);
-
-//             new_data[new_block_index] &= !(new_mask << new_offset);
-//             new_data[new_block_index] |= value_to_write << new_offset;
-
-//             let new_bits_remaining_in_u64: usize = 64 - new_offset;
-//             if (new_bits_per_block as usize) > new_bits_remaining_in_u64 {
-//                 if new_block_index + 1 < new_data.len() {
-//                     new_data[new_block_index + 1] &= !(
-//                         (new_mask >> new_bits_remaining_in_u64) <<
-//                         0
-//                     );
-//                     new_data[new_block_index + 1] |= value_to_write >> new_bits_remaining_in_u64;
-//                 }
-//             }
-//         }
-
-//         self.data = new_data;
-//         self.bits_per_block = new_bits_per_block;
-//     }
-// }
+        assert_eq!(subchunk.block(pos_1), Block::Grass);
+        assert_eq!(subchunk.block(pos_2), Block::Air);
+    }
+}

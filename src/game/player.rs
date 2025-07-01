@@ -1,6 +1,7 @@
 use macroquad::prelude::{ KeyCode, is_key_down, is_key_pressed };
 use crate::game::physics::{ Hitbox3D, Velocity3D, Position3D };
-use crate::terrain::position::{ ChunkPosition, Conversion };
+use crate::terrain::chunk::ChunkPosition;
+use crate::terrain::World;
 use crate::config::CONFIG;
 use crate::rendering::isometric_projection::PROJECTION;
 
@@ -78,7 +79,7 @@ impl Player {
     /// assert_eq!(chunk_pos, ChunkPosition::new(0, -1));
     /// ```
     pub fn get_chunk_pos(&self) -> ChunkPosition {
-        Conversion::block_to_chunk_pos(PROJECTION.screen_to_world(self.hitbox.pos))
+        World::block_to_chunk_pos(PROJECTION.screen_to_world(self.hitbox.pos))
     }
 
     /// Progresses the physics of player by one frame relative to time passed.

@@ -1,201 +1,224 @@
-use crate::terrain::Block;
-use crate::terrain::{ BlockPosition, ChunkPosition };
+use serde::{ Serialize, Deserialize };
+use itertools::iproduct;
+use crate::terrain::section::{ SECTION_WIDTH, SECTION_HEIGHT, SECTION_DEPTH };
+use crate::terrain::subchunk::Subchunk;
+use crate::terrain::{ BlockPosition, Block };
 
-pub const CHUNK_WIDTH: u32 = 16;
-pub const CHUNK_HEIGHT: u32 = 16;
-pub const CHUNK_DEPTH: u32 = 16;
-pub const CHUNK_VOLUME: usize = (CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH) as usize;
+const SUBCHUNKS_IN_CHUNK: usize = 4;
 
-/// Used to send info from chunk module to renderer.
-/// Contains the block name and its screen position.
-pub struct BlockRenderData {
-    pub block_name: Block,
-    pub world_pos: BlockPosition,
-    pub is_target: bool,
+pub const CHUNK_WIDTH: usize = SECTION_WIDTH;
+pub const CHUNK_HEIGHT: usize = SECTION_HEIGHT;
+pub const CHUNK_DEPTH: usize = SECTION_DEPTH * SUBCHUNKS_IN_CHUNK;
+pub const CHUNK_VOLUME: usize = CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH;
+
+pub const BLOCK_OFFSETS: [BlockPosition; 6] = [
+    BlockPosition::new(1, 0, 0),
+    BlockPosition::new(0, 1, 0),
+    BlockPosition::new(0, 0, 1),
+    BlockPosition::new(-1, 0, 0),
+    BlockPosition::new(0, -1, 0),
+    BlockPosition::new(0, 0, -1),
+];
+
+/// Stores the two dimensional integer position of a chunk.
+pub type ChunkPosition = glam::IVec2;
+
+macro_rules! impl_getter {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $return_type:ty,
+        $sub_method:ident,
+        $default:expr
+    ) => {
+        $(#[$meta])*
+        pub fn $name(&self, pos: BlockPosition) -> $return_type {
+            if let Some(subchunk) = self.subchunk(pos.z) {
+                let sub_pos: BlockPosition = Self::local_to_sub(pos);
+                subchunk.$sub_method(sub_pos) as $return_type
+            } else {
+                $default
+            }
+        }
+    };
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub struct Chunk {
-    pos: ChunkPosition,
-    blocks: [Block; CHUNK_VOLUME],
-
-    // using u8 for 4-bit packed values (0-15), 2 values per byte
-    // this halves the memory compared to storing u8 per value
-    sky_light: [u8; CHUNK_VOLUME / 2],
-    block_light: [u8; CHUNK_VOLUME / 2],
-    exposed_blocks: [u64; CHUNK_VOLUME / 64],
+    pub pos: ChunkPosition,
+    subchunks: [Option<Subchunk>; SUBCHUNKS_IN_CHUNK],
 }
 
 impl Chunk {
-    /// Create a new empty chunk (filled with air blocks) at a given pos.
-    /// World generation logic should then fill this chunk with appropriate blocks.
+    /// Create a new zeroed out chunk.
     ///
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::{ Block, Block };
-    /// use floralcraft::terrain::chunk::Chunk;
-    /// use floralcraft::terrain::{ ChunkPosition, BlockPosition };
+    /// use floralcraft::terrain::chunk::{ Chunk, ChunkPosition };
     ///
-    /// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
-    /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-    /// let chunk: Chunk = Chunk::new(chunk_pos);
-    /// let is_block_exposed: Option<bool> = chunk.is_block_exposed(pos);
-    ///
-    /// if let Some(block) = chunk.get_block_name(pos) {
-    ///     assert_eq!(block, Block::Air);
-    ///     assert!(!is_block_exposed.unwrap());
-    /// } else {
-    ///     panic!();
-    /// }
+    /// let pos: ChunkPosition = ChunkPosition::new(0, 0);
+    /// let chunk: Chunk = Chunk::new(pos);
     /// ```
-    pub const fn new(pos: ChunkPosition) -> Self {
+    pub fn new(pos: ChunkPosition) -> Self {
         Self {
             pos,
-            blocks: [Block::Air; CHUNK_VOLUME],
-            sky_light: [0; CHUNK_VOLUME / 2],
-            block_light: [0; CHUNK_VOLUME / 2],
-            exposed_blocks: [0; CHUNK_VOLUME / 64],
+            subchunks: std::array::from_fn(|_| None),
         }
     }
 
-    // returns chunk array index given local position
-    const fn get_index(pos: BlockPosition) -> Option<usize> {
-        if
-            pos.x < 0 ||
-            pos.x >= (CHUNK_WIDTH as i32) ||
-            pos.y < 0 ||
-            pos.y >= (CHUNK_HEIGHT as i32) ||
-            pos.z < 0 ||
-            pos.z >= (CHUNK_DEPTH as i32)
-        {
-            return None;
-        }
+    impl_getter!(
+        /// Gets the block given its local position.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use floralcraft::terrain::chunk::{ Chunk, ChunkPosition };
+        /// use floralcraft::terrain::block::{ Block, BlockPosition };
+        ///
+        /// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
+        /// let mut chunk: Chunk = Chunk::new(chunk_pos);
+        /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
+        ///
+        /// chunk.set_block(pos, Block::Dirt);
+        /// let block: Block = chunk.block(pos);
+        ///
+        /// assert_eq!(block, Block::Dirt);
+        /// ```
+        block,
+        Block,
+        block,
+        Block::Air
+    );
 
-        Some(
-            (pos.x as usize) * ((CHUNK_HEIGHT * CHUNK_DEPTH) as usize) +
-                (pos.y as usize) * (CHUNK_DEPTH as usize) +
-                (pos.z as usize)
+    impl_getter!(
+        /// Gets skylight given its local position.
+        sky_light,
+        u8,
+        sky_light,
+        0
+    );
+
+    impl_getter!(
+        /// Gets block light given its local position.
+        block_light,
+        u8,
+        block_light,
+        0
+    );
+
+    impl_getter!(
+        /// Gets if block is exposed given its local position.
+        block_exposed,
+        bool,
+        block_exposed,
+        false
+    );
+
+    /// Sets block given its local position.
+    pub fn set_block(&mut self, pos: BlockPosition, block: Block) {
+        self.set_subchunk_item(pos, block, |subchunk, sub_pos, val|
+            subchunk.set_block(sub_pos, val)
+        );
+    }
+
+    /// Sets skylight given its local position.
+    pub fn set_sky_light(&mut self, pos: BlockPosition, value: u8) {
+        self.set_subchunk_item(pos, value, |subchunk, sub_pos, val|
+            subchunk.set_sky_light(sub_pos, val)
+        );
+    }
+
+    /// Sets block light given its local position.
+    pub fn set_block_light(&mut self, pos: BlockPosition, value: u8) {
+        self.set_subchunk_item(pos, value, |subchunk, sub_pos, val|
+            subchunk.set_block_light(sub_pos, val)
+        );
+    }
+
+    /// Sets if block is exposed given its local position.
+    pub fn set_block_exposed(&mut self, pos: BlockPosition, value: bool) {
+        self.set_subchunk_item(pos, value, |subchunk, sub_pos, val|
+            subchunk.set_block_exposed(sub_pos, val)
+        );
+    }
+
+    /// Returns a bool for if all subchunks are empty.
+    pub fn is_empty(&self) -> bool {
+        self.subchunks.iter().all(|subchunk| subchunk.is_none())
+    }
+
+    /// Returns an iterator for all block positions.
+    pub fn chunk_coords() -> impl Iterator<Item = BlockPosition> {
+        iproduct!(0..CHUNK_WIDTH as i32, 0..CHUNK_HEIGHT as i32, 0..CHUNK_DEPTH as i32).map(
+            |(x, y, z)| BlockPosition::new(x, y, z)
         )
     }
 
-    /// Gets an option for the name of the block at a given local position.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::terrain::Block;
-    /// use floralcraft::terrain::chunk::Chunk;
-    /// use floralcraft::terrain::{ BlockPosition, ChunkPosition };
-    ///
-    /// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
-    /// let chunk: Chunk = Chunk::new(chunk_pos);
-    ///
-    /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-    /// let name: Option<Block> = chunk.get_block_name(pos);
-    ///
-    /// if let Some(name) = chunk.get_block_name(pos) {
-    ///     assert_eq!(name, Block::Air);
-    /// } else {
-    ///     panic!();
-    /// }
-    /// ```
-    pub fn get_block_name(&self, pos: BlockPosition) -> Option<Block> {
-        let index: usize = Self::get_index(pos)?;
-        Some(self.blocks[index])
+    pub fn block_offsets(pos: BlockPosition) -> impl Iterator<Item = BlockPosition> {
+        BLOCK_OFFSETS.iter()
+            .map(move |offset| { pos + offset })
+            .filter(|adj_pos| { adj_pos.z >= 0 && adj_pos.z < (CHUNK_DEPTH as i32) })
     }
 
-    /// Sets the name of a block at a given local position.
-    /// Returns None if no index found.
-    pub fn set_block_name(&mut self, pos: BlockPosition, block_name: Block) -> Option<()> {
-        let index: usize = Self::get_index(pos)?;
-        self.blocks[index] = block_name;
-        Some(())
-    }
+    fn set_subchunk_item<T: Into<u64>, F>(&mut self, pos: BlockPosition, value: T, f: F)
+        where T: Copy, F: FnOnce(&mut Subchunk, BlockPosition, T)
+    {
+        let index: usize = Self::subchunk_index(pos.z);
+        let subchunk_opt: &mut Option<Subchunk> = &mut self.subchunks[index];
 
-    /// Gets an option for the mutable name of the block at a given local position.
-    pub fn get_block_name_mut(&mut self, pos: BlockPosition) -> Option<&mut Block> {
-        let index: usize = Self::get_index(pos)?;
-        Some(&mut self.blocks[index])
-    }
-
-    /// Gets an option for the value of skylight at a given local position.
-    pub fn get_sky_light(&self, pos: BlockPosition) -> Option<u8> {
-        let index: usize = Self::get_index(pos)?;
-        let byte_index: usize = index / 2;
-        let byte: u8 = self.sky_light[byte_index];
-        Some(if index % 2 == 0 { byte & 0xf } else { byte >> 4 })
-    }
-
-    /// Sets the value of skylight at a given local position.
-    /// Returns None if no index found.
-    /// Value must be 0-15.
-    pub fn set_sky_light(&mut self, pos: BlockPosition, level: u8) -> Option<()> {
-        let index: usize = Self::get_index(pos)?;
-        let byte_index: usize = index / 2;
-        let mut byte: u8 = self.sky_light[byte_index];
-
-        let clamped_level: u8 = level & 0xf; // level must not exceed 4 bits
-
-        if index % 2 == 0 {
-            byte = (byte & 0xf0) | clamped_level; // lower 4 bits
-        } else {
-            byte = (byte & 0x0f) | (clamped_level << 4); // upper 4 bits
+        if value.into() == 0 && subchunk_opt.is_none() {
+            return; // return if placement is redundant
         }
 
-        self.sky_light[byte_index] = byte;
-        Some(())
-    }
+        let subchunk: &mut Subchunk = subchunk_opt.get_or_insert_with(|| Subchunk::new());
+        let sub_pos: BlockPosition = Self::local_to_sub(pos);
 
-    /// Gets an option of value of block light at a given local position.
-    pub fn get_block_light(&self, pos: BlockPosition) -> Option<u8> {
-        let index: usize = Self::get_index(pos)?;
-        let byte_index: usize = index / 2;
-        let byte: u8 = self.block_light[byte_index];
-        Some(if index % 2 == 0 { byte & 0xf } else { byte >> 4 })
-    }
+        f(subchunk, sub_pos, value);
 
-    /// Sets the value of block light at a given local position.
-    /// Returns None if no index found.
-    /// Value must be 0-15.
-    pub fn set_block_light(&mut self, pos: BlockPosition, level: u8) -> Option<()> {
-        let index: usize = Self::get_index(pos)?;
-        let byte_index: usize = index / 2;
-        let mut byte: u8 = self.block_light[byte_index];
-        let clamped_level: u8 = level & 0xf; // level must not exceed 4 bits
-
-        if index % 2 == 0 {
-            byte = (byte & 0xf0) | clamped_level; // lower 4 bits
-        } else {
-            byte = (byte & 0x0f) | (clamped_level << 4); // upper 4 bits
+        if subchunk.is_empty() {
+            *subchunk_opt = None; // set empty subchunks to none
         }
-
-        self.block_light[byte_index] = byte;
-
-        Some(())
     }
 
-    /// Gets option of is exposed at a given local position.
-    pub fn is_block_exposed(&self, pos: BlockPosition) -> Option<bool> {
-        let index: usize = Self::get_index(pos)?;
-        let array_index: usize = index / 64;
-        let bit_index: usize = index % 64;
-        Some((self.exposed_blocks[array_index] & (1 << bit_index)) != 0)
+    fn subchunk(&self, pos_z: i32) -> Option<&Subchunk> {
+        let index: usize = Self::subchunk_index(pos_z);
+        self.subchunks[index].as_ref()
     }
 
-    /// Sets is exposed at a given local position.
-    /// Returns None if no index found.
-    pub fn set_block_exposed(&mut self, pos: BlockPosition, is_exposed: bool) -> Option<()> {
-        let index: usize = Self::get_index(pos)?;
-        let array_index: usize = index / 64;
-        let bit_index: usize = index % 64;
+    fn subchunk_index(pos_z: i32) -> usize {
+        (pos_z as usize).div_euclid(SECTION_DEPTH)
+    }
 
-        if is_exposed {
-            self.exposed_blocks[array_index] |= 1 << bit_index;
-        } else {
-            self.exposed_blocks[array_index] &= !(1 << bit_index);
-        }
+    fn local_to_sub(pos: BlockPosition) -> BlockPosition {
+        BlockPosition::new(pos.x, pos.y, pos.z.rem_euclid(SECTION_DEPTH as i32))
+    }
+}
 
-        Some(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::IVec3;
+
+    #[test]
+    fn test_new_is_empty() {
+        let pos: ChunkPosition = ChunkPosition::new(0, 0);
+        let chunk: Chunk = Chunk::new(pos);
+        assert!(chunk.is_empty());
+    }
+
+    #[test]
+    fn test_set_and_get_block() {
+        let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
+        let mut chunk: Chunk = Chunk::new(chunk_pos);
+        let pos_1: IVec3 = IVec3::new(15, 1, 21);
+        let pos_2: IVec3 = IVec3::new(3, 0, 2);
+
+        chunk.set_block(pos_1, Block::Dirt);
+        chunk.set_block(pos_1, Block::Grass);
+        chunk.set_block(pos_2, Block::Air);
+
+        assert_eq!(chunk.block(pos_1), Block::Grass);
+        assert_eq!(chunk.block(pos_2), Block::Air);
     }
 }

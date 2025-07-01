@@ -1,7 +1,7 @@
 use glam::{ Mat2, Vec2 };
 use std::sync::LazyLock;
 use crate::game::physics::Position3D;
-use crate::terrain::position::BlockPosition;
+use crate::terrain::block::BlockPosition;
 
 const TILE_WIDTH: u32 = 28;
 const TILE_HEIGHT: u32 = 28;

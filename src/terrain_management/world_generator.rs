@@ -1,17 +1,10 @@
-use itertools::iproduct;
 use rand_pcg::Pcg64;
 use rand::SeedableRng;
 use crate::config::WorldGeneration;
-use crate::terrain::{
-    BlockPosition,
-    ChunkPosition,
-    Conversion,
-    Chunk,
-    CHUNK_WIDTH,
-    CHUNK_HEIGHT,
-    CHUNK_DEPTH,
-    Block,
-};
+use crate::terrain::World;
+use crate::terrain::block::{ Block, BlockPosition };
+use crate::terrain::chunk::{ Chunk, ChunkPosition };
+
 use crate::terrain_management::block_generator::{
     BlockGenerator,
     SkyblockGenerator,
@@ -64,24 +57,19 @@ impl<T> WorldGeneratorTrait
 
     fn generate_chunk(&self, pos: ChunkPosition, params: &WorldGeneration) -> Chunk {
         let mut chunk: Chunk = Chunk::new(pos);
-        let chunk_origin_block_pos: BlockPosition = Conversion::chunk_to_block_pos(pos);
+        let chunk_block_pos: BlockPosition = World::chunk_to_block_pos(pos);
 
-        let generated_blocks: Vec<(BlockPosition, Block)> = iproduct!(
-            0..CHUNK_WIDTH as i32,
-            0..CHUNK_HEIGHT as i32,
-            0..CHUNK_DEPTH as i32
-        )
-            .map(|(x, y, z)| {
-                let local_block_pos: BlockPosition = BlockPosition::new(x, y, z);
-                let world_block_pos: BlockPosition = chunk_origin_block_pos + local_block_pos;
-                let block_name: Block = self.block_generator.get_block(world_block_pos, params);
+        let generated_blocks: Vec<(BlockPosition, Block)> = Chunk::chunk_coords()
+            .map(|pos| {
+                let world_pos: BlockPosition = chunk_block_pos + pos;
+                let block: Block = self.block_generator.choose_block(world_pos, params);
 
-                (local_block_pos, block_name)
+                (pos, block)
             })
             .collect();
 
-        generated_blocks.into_iter().for_each(|(local_block_pos, block_name)| {
-            chunk.set_block_name(local_block_pos, block_name);
+        generated_blocks.into_iter().for_each(|(pos, block)| {
+            chunk.set_block(pos, block);
         });
 
         chunk

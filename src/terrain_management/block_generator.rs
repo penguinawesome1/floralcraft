@@ -1,28 +1,19 @@
 use noise::{ Fbm, SuperSimplex, NoiseFn, MultiFractal, RidgedMulti, Seedable };
-use crate::terrain::{ CHUNK_DEPTH, Block };
+use crate::terrain::chunk::CHUNK_DEPTH;
 use crate::config::{ NoiseParams, WorldGeneration };
-use crate::terrain::position::BlockPosition;
-
-fn configure_noise<T, G, const DIM: usize>(noise_gen: G, params: &NoiseParams) -> G
-    where T: NoiseFn<f64, DIM> + Sized + Default + Seedable, G: MultiFractal + Seedable
-{
-    noise_gen
-        .set_octaves(params.octaves)
-        .set_frequency(params.frequency)
-        .set_lacunarity(params.lacunarity)
-        .set_persistence(params.persistence)
-}
+use crate::terrain::block::{ Block, BlockPosition };
 
 pub trait BlockGenerator: Send + Sync + Clone + 'static {
-    fn get_block(&self, world_pos: BlockPosition, params: &WorldGeneration) -> Block;
+    /// Returns the noise calculated block from the passed global position.
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> Block;
 }
 
 #[derive(Clone)]
 pub struct SkyblockGenerator;
 
 impl BlockGenerator for SkyblockGenerator {
-    fn get_block(&self, world_pos: BlockPosition, _params: &WorldGeneration) -> Block {
-        match world_pos.z {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
+        match pos.z {
             0 => Block::Bedrock,
             z if z < 4 => Block::Dirt,
             4 => Block::Grass,
@@ -35,8 +26,8 @@ impl BlockGenerator for SkyblockGenerator {
 pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
-    fn get_block(&self, world_pos: BlockPosition, _params: &WorldGeneration) -> Block {
-        match world_pos.z {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
+        match pos.z {
             0 => Block::Bedrock,
             z if z < 4 => Block::Dirt,
             4 => Block::Grass,
@@ -84,30 +75,40 @@ impl NormalGenerator {
 }
 
 impl BlockGenerator for NormalGenerator {
-    fn get_block(&self, world_pos: BlockPosition, params: &WorldGeneration) -> Block {
-        if world_pos.z == 0 {
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> Block {
+        if pos.z == 0 {
             return Block::Bedrock; // place bedrock at world floor
         }
 
-        let density_val: f64 = self.get_density_val(world_pos);
+        let density_val: f64 = self.get_density_val(pos);
         if density_val < params.cave_threshold {
             return Block::Air; // carve out caves
         }
 
-        let height_val: f64 = self.get_height_val(world_pos);
+        let height_val: f64 = self.get_height_val(pos);
         let height_val_normalized: f64 = (height_val + 1.0) / 2.0;
         let max_height: f64 = (CHUNK_DEPTH as f64) - (params.minimum_air_height as f64);
         let height: i32 = (max_height * height_val_normalized) as i32;
         let dirt_height: i32 = height - params.dirt_height;
 
-        if world_pos.z > height {
+        if pos.z > height {
             Block::Air // carve surface level
-        } else if world_pos.z == height {
+        } else if pos.z == height {
             Block::Grass // place grass at surface
-        } else if world_pos.z >= dirt_height {
+        } else if pos.z >= dirt_height {
             Block::Dirt
         } else {
             Block::Stone
         }
     }
+}
+
+fn configure_noise<T, G, const DIM: usize>(noise_gen: G, params: &NoiseParams) -> G
+    where T: NoiseFn<f64, DIM> + Sized + Default + Seedable, G: MultiFractal + Seedable
+{
+    noise_gen
+        .set_octaves(params.octaves)
+        .set_frequency(params.frequency)
+        .set_lacunarity(params.lacunarity)
+        .set_persistence(params.persistence)
 }

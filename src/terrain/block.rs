@@ -1,3 +1,6 @@
+/// Stores the three dimensional integer position of a block.
+pub type BlockPosition = glam::IVec3;
+
 /// Every type of block in the game has its own name
 ///
 /// Allows ease of storing and accessing block dictionary from
@@ -21,7 +24,7 @@ impl Block {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::Block;
+    /// use floralcraft::terrain::block::Block;
     ///
     /// assert_eq!(Block::from_string("air"), Block::Air);
     /// assert_eq!(Block::from_string("bedrock"), Block::Bedrock);
@@ -38,14 +41,13 @@ impl Block {
         }
     }
 
-    // uses transmute to convert a u32 to a block name
-    // requires missing to be the last item in block name enum
-    const fn from_u32(value: u32) -> Self {
-        let value_u8 = value as u8;
+    /// Converts u32 to corresponding enum value.
+    pub const fn from_u32(value: u32) -> Self {
+        let value_u8: u8 = value as u8;
         if value_u8 < (Self::Missing as u8) {
             unsafe { std::mem::transmute(value_u8) }
         } else {
-            Self::Missing
+            Self::Missing // requires missing to be the last item in block name enum
         }
     }
 
@@ -56,7 +58,7 @@ impl Block {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::{ BlockDefinition, Block };
+    /// use floralcraft::terrain::block::{ BlockDefinition, Block };
     ///
     /// let air_block: BlockDefinition = Block::Air.definition();
     /// let missing_block: BlockDefinition = Block::Missing.definition();
@@ -74,6 +76,12 @@ impl Block {
             Self::Bedrock => BlockDefinition::BEDROCK,
             Self::Missing => BlockDefinition::AIR,
         }
+    }
+}
+
+impl Into<u64> for Block {
+    fn into(self) -> u64 {
+        self as u64
     }
 }
 
@@ -143,7 +151,7 @@ impl BlockDefinition {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::BlockDefinition;
+    /// use floralcraft::terrain::block::BlockDefinition;
     ///
     /// assert!(!BlockDefinition::AIR.is_visible());
     /// assert!(!BlockDefinition::AIR.is_collidable());
@@ -160,7 +168,7 @@ impl BlockDefinition {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::{BlockDefinition, Block};
+    /// use floralcraft::terrain::block::{ BlockDefinition, Block };
     ///
     /// assert_eq!(BlockDefinition::AIR.get_name(), Block::Air);
     /// assert_eq!(BlockDefinition::BEDROCK.get_name(), Block::Bedrock);
@@ -176,7 +184,7 @@ impl BlockDefinition {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::BlockDefinition;
+    /// use floralcraft::terrain::block::BlockDefinition;
     ///
     /// assert!(BlockDefinition::GRASS.is_hoverable());
     /// assert!(!BlockDefinition::AIR.is_hoverable());

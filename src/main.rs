@@ -2,7 +2,7 @@ use macroquad::prelude::*;
 use floralcraft::game::player::Player;
 use floralcraft::game::physics::{ Position3D, Position2D };
 use floralcraft::rendering::Renderer;
-use floralcraft::terrain::{ ChunkPosition, Chunk };
+use floralcraft::terrain::chunk::{ ChunkPosition, Chunk };
 use floralcraft::terrain_management::{ WorldLogic, MouseTargets };
 use floralcraft::config::CONFIG;
 
@@ -31,7 +31,13 @@ async fn main() {
         let is_right_click: bool = is_mouse_button_pressed(MouseButton::Right);
 
         // world update
-        world_logic.update(origin, mouse_pos, is_left_click, is_right_click);
+        world_logic.update(
+            origin,
+            CONFIG.world.render_distance as i32,
+            mouse_pos,
+            is_left_click,
+            is_right_click
+        );
 
         // camera updates
         camera.zoom = Vec2::new(zoom / screen_width(), zoom / screen_height());
@@ -40,9 +46,9 @@ async fn main() {
 
         // rendering
         let radius: i32 = CONFIG.world.render_distance as i32;
-        let chunks: Vec<&Chunk> = world_logic.world.get_chunks_in_square(origin, radius).collect();
+        let chunks: Vec<&Chunk> = world_logic.world.chunks_in_square(origin, radius).collect();
         let targets: Option<MouseTargets> = world_logic.find_mouse_targets(mouse_pos);
-        renderer.update(&player, &chunks, targets).await;
+        renderer.update(&player, &chunks, &world_logic, targets).await;
 
         set_default_camera();
         next_frame().await;
