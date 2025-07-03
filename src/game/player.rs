@@ -1,5 +1,6 @@
-use macroquad::prelude::{ KeyCode, is_key_down, is_key_pressed };
-use crate::game::physics::{ Hitbox3D, Velocity3D, Position3D };
+use bevy::prelude::*;
+use glam::Vec3;
+use crate::game::physics::Hitbox3D;
 use crate::terrain::chunk::ChunkPosition;
 use crate::terrain::World;
 use crate::config::CONFIG;
@@ -24,43 +25,14 @@ impl PlayerFrameKey {
     }
 }
 
+#[derive(Component)]
 pub struct Player {
     pub image_name: PlayerFrameKey,
     pub hitbox: Hitbox3D,
-    pub velocity: Velocity3D,
+    pub velocity: Vec3,
 }
 
 impl Player {
-    /// Creates a new player body.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::game::physics::{ Position3D, Hitbox3D, Velocity3D };
-    /// use floralcraft::game::player::Player;
-    ///
-    /// let player: Player = Player::new();
-    ///
-    /// assert_eq!(player.hitbox.pos.x, 0.0);
-    /// assert_eq!(player.velocity.x, 0.0);
-    /// ```
-    pub const fn new() -> Self {
-        Self {
-            image_name: PlayerFrameKey::Idle,
-            hitbox: Hitbox3D {
-                pos: Position3D {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 20.0,
-                },
-                width: 32.0,
-                height: 32.0,
-                depth: 0.0,
-            },
-            velocity: Velocity3D::ZERO,
-        }
-    }
-
     /// Gets the position of player converted to chunk position.
     ///
     /// # Examples
@@ -84,7 +56,7 @@ impl Player {
 
     /// Progresses the physics of player by one frame relative to time passed.
     pub fn update(&mut self, delta_time: f32) {
-        // self.apply_gravity(delta_time);
+        self.apply_gravity(delta_time);
         self.update_velocity(delta_time);
         self.apply_friction(delta_time);
         self.update_position(delta_time);
@@ -96,7 +68,7 @@ impl Player {
         self.hitbox.pos.z += self.velocity.z * delta_time;
     }
 
-    fn _apply_gravity(&mut self, delta_time: f32) {
+    fn apply_gravity(&mut self, delta_time: f32) {
         let gravity: f32 = CONFIG.player.gravity_per_second * delta_time;
         self.velocity.z -= gravity;
     }
@@ -108,14 +80,14 @@ impl Player {
         self.velocity.y *= friction;
 
         if self.velocity.length().abs() < CONFIG.player.stop_threshold {
-            self.velocity = Velocity3D::ZERO;
+            self.velocity = Vec3::ZERO;
         }
     }
 
     fn update_velocity(&mut self, delta_time: f32) {
         let accel: f32 = CONFIG.player.acceleration_per_second * delta_time;
 
-        let mut d_vel: Velocity3D = Velocity3D::ZERO;
+        let mut d_vel: Vec3 = Vec3::ZERO;
 
         if is_key_down(KeyCode::Up) {
             d_vel.y -= 1.0;

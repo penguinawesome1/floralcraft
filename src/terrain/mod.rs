@@ -87,10 +87,10 @@ impl World {
     }
 
     /// Sets the block at a given global position.
-    pub fn set_block(&mut self, pos: BlockPosition, block_name: Block) -> Option<()> {
+    pub fn set_block(&mut self, pos: BlockPosition, block: Block) -> Option<()> {
         let chunk_pos: ChunkPosition = Self::block_to_chunk_pos(pos);
         let local_pos: BlockPosition = Self::global_to_local_pos(pos);
-        self.get_chunk_mut(chunk_pos)?.set_block(local_pos, block_name);
+        self.get_chunk_mut(chunk_pos)?.set_block(local_pos, block);
         self.mark_chunks_dirty_with_adj(chunk_pos);
         Some(())
     }
@@ -103,11 +103,12 @@ impl World {
     }
 
     /// Gets an iter of all chunk positions in a square around the passed origin position.
-    /// Radius of 0 results in 1 chunk.
+    /// Radius of 0 results in 1 position.
     pub fn positions_in_square(
         origin: ChunkPosition,
-        radius: i32
+        radius: u32
     ) -> impl Iterator<Item = ChunkPosition> {
+        let radius: i32 = radius as i32;
         iproduct!(-radius..=radius, -radius..=radius).map(
             move |(x, y)| origin + ChunkPosition::new(x, y)
         )
@@ -118,7 +119,7 @@ impl World {
     pub fn chunks_in_square(
         &self,
         origin: ChunkPosition,
-        radius: i32
+        radius: u32
     ) -> impl Iterator<Item = &Chunk> {
         Self::positions_in_square(origin, radius).filter_map(|pos| self.chunk(pos))
     }

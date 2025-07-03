@@ -1,20 +1,21 @@
 /// Stores the three dimensional integer position of a block.
 pub type BlockPosition = glam::IVec3;
 
-/// Every type of block in the game has its own name
+/// Every type of block in the game has its own name.
 ///
 /// Allows ease of storing and accessing block dictionary from
-/// Specifically stored as a u8 to maximize memory savings
+/// Specifically stored as a u8 to maximize memory savings.
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
 pub enum Block {
-    Air, // air must remain at the start
+    Air = 0,
     Grass,
     Dirt,
     Stone,
     Bedrock,
-    Missing, // missing must remain at the end
-    // cannot exceed 256 entrees
+    #[default]
+    Missing,
+    Length,
 }
 
 impl Block {
@@ -44,10 +45,10 @@ impl Block {
     /// Converts u32 to corresponding enum value.
     pub const fn from_u32(value: u32) -> Self {
         let value_u8: u8 = value as u8;
-        if value_u8 < (Self::Missing as u8) {
+        if value_u8 < (Self::Length as u8) {
             unsafe { std::mem::transmute(value_u8) }
         } else {
-            Self::Missing // requires missing to be the last item in block name enum
+            Self::Missing
         }
     }
 
@@ -74,7 +75,8 @@ impl Block {
             Self::Dirt => BlockDefinition::DIRT,
             Self::Stone => BlockDefinition::STONE,
             Self::Bedrock => BlockDefinition::BEDROCK,
-            Self::Missing => BlockDefinition::AIR,
+            Self::Missing => BlockDefinition::MISSING,
+            Self::Length => unreachable!(),
         }
     }
 }
@@ -162,6 +164,7 @@ impl BlockDefinition {
     pub const DIRT: Self = Self::new(Block::Dirt, true, true, true, true, false);
     pub const STONE: Self = Self::new(Block::Stone, true, true, true, true, false);
     pub const BEDROCK: Self = Self::new(Block::Bedrock, true, true, false, true, false);
+    pub const MISSING: Self = Self::new(Block::Missing, false, true, false, true, false);
 
     /// Returns the `Block` (type) of this block.
     ///

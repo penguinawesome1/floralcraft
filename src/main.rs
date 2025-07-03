@@ -1,56 +1,68 @@
-use macroquad::prelude::*;
-use floralcraft::game::player::Player;
-use floralcraft::game::physics::{ Position3D, Position2D };
-use floralcraft::rendering::Renderer;
-use floralcraft::terrain::chunk::{ ChunkPosition, Chunk };
-use floralcraft::terrain_management::{ WorldLogic, MouseTargets };
-use floralcraft::config::CONFIG;
+use bevy::prelude::*;
+use floralcraft::{
+    rendering::assets::{ Assets, ImageKey },
+    terrain::block::BlockPosition,
+    terrain::chunk::{ Chunk, ChunkPosition },
+    terrain_management::WorldLogic,
+    config::CONFIG,
+    terrain::World,
+};
 
-#[macroquad::main("Floralcraft")]
-async fn main() {
-    let mut camera: Camera2D = Camera2D::default();
-    let mut world_logic: WorldLogic = WorldLogic::new();
-    let mut player: Player = Player::new();
-    let mut renderer: Renderer = Renderer::new().await.expect("failed to initialize assets");
+fn main() {
+    App::new()
+        .add_plugins(
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: String::from("Floralcraft"),
+                    ..default()
+                }),
+                ..default()
+            })
+        )
+        .add_systems(Startup, setup)
+        .add_systems(Update, update_world_logic)
+        .add_systems(Update, draw_blocks)
+        .run();
+}
 
-    loop {
-        clear_background(BLACK);
+fn setup(mut commands: Commands) {
+    commands.insert_resource(WorldLogic::new());
+    commands.insert_resource(Assets::new());
+    commands.spawn(Camera2d);
+    info!("Setup complete!");
+}
 
-        let delta_time: f32 = get_frame_time();
+fn draw_blocks(
+    mut commands: Commands,
+    mut assets: ResMut<Assets>,
+    asset_server: Res<AssetServer>,
+    world_logic: ResMut<WorldLogic>
+) {
+    let origin: ChunkPosition = ChunkPosition::new(0, 0);
+    let chunk_positions = World::positions_in_square(origin, CONFIG.world.render_distance);
+    for chunk_pos in chunk_positions {
+        if !world_logic.world.is_chunk_at_pos(chunk_pos) {
+            continue;
+        }
 
-        // player update
-        player.update(delta_time);
-        let origin: ChunkPosition = player.get_chunk_pos();
-        let player_pos: Position3D = player.hitbox.pos;
+        let chunk_block_pos: BlockPosition = World::chunk_to_block_pos(chunk_pos);
 
-        // inputs
-        let zoom: f32 = CONFIG.player.camera_zoom;
-        let mouse_pos_vec: Vec2 = camera.screen_to_world(mouse_position().into());
-        let mouse_pos: Position2D = Position2D::new(mouse_pos_vec.x, mouse_pos_vec.y);
-        let is_left_click: bool = is_mouse_button_pressed(MouseButton::Left);
-        let is_right_click: bool = is_mouse_button_pressed(MouseButton::Right);
-
-        // world update
-        world_logic.update(
-            origin,
-            CONFIG.world.render_distance as i32,
-            mouse_pos,
-            is_left_click,
-            is_right_click
-        );
-
-        // camera updates
-        camera.zoom = Vec2::new(zoom / screen_width(), zoom / screen_height());
-        camera.target = Vec2::new(player_pos.x, player_pos.y - player_pos.z);
-        set_camera(&camera);
-
-        // rendering
-        let radius: i32 = CONFIG.world.render_distance as i32;
-        let chunks: Vec<&Chunk> = world_logic.world.chunks_in_square(origin, radius).collect();
-        let targets: Option<MouseTargets> = world_logic.find_mouse_targets(mouse_pos);
-        renderer.update(&player, &chunks, &world_logic, targets).await;
-
-        set_default_camera();
-        next_frame().await;
+        for pos in Chunk::chunk_coords() {
+            let world_pos: BlockPosition = chunk_block_pos + pos;
+            if let Some(data) = world_logic.block_render_data(world_pos, None) {
+                let texture: Handle<Image> = assets.image(
+                    asset_server.clone(),
+                    ImageKey::Block(data.block)
+                );
+                commands.spawn((
+                    Sprite::from_image(texture),
+                    Transform::from_xyz(data.pos.x as f32, -data.pos.y + data.pos.z, 0.0),
+                ));
+            }
+        }
     }
+}
+
+fn update_world_logic(mut world_logic: ResMut<WorldLogic>) {
+    world_logic.update(ChunkPosition::new(0, 0));
 }

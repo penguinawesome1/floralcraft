@@ -1,8 +1,26 @@
-use macroquad::prelude::{ Texture2D, load_texture };
+use bevy::prelude::*;
 use std::collections::HashMap;
 use crate::terrain::block::Block;
 use crate::config::CONFIG;
-use crate::game::player::PlayerFrameKey;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PlayerFrameKey {
+    Idle,
+    Run,
+    Missing,
+}
+
+impl PlayerFrameKey {
+    /// Takes input string and returns its corresponding key.
+    /// Used to take config inputs and convert into keys for rendering images.
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            "idle" => Self::Idle,
+            "run" => Self::Run,
+            _ => Self::Missing,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImageKey {
@@ -10,53 +28,79 @@ pub enum ImageKey {
     Block(Block),
 }
 
+impl From<Block> for ImageKey {
+    fn from(block: Block) -> Self {
+        ImageKey::Block(block)
+    }
+}
+
+impl From<PlayerFrameKey> for ImageKey {
+    fn from(player_frame_key: PlayerFrameKey) -> Self {
+        ImageKey::Player(player_frame_key)
+    }
+}
+
+#[derive(Resource)]
 pub struct Assets {
-    images: HashMap<ImageKey, Texture2D>,
+    images: HashMap<ImageKey, Handle<Image>>,
     image_paths: HashMap<ImageKey, String>,
+}
+
+impl Default for Assets {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Assets {
     /// Initializes the assets by reading image paths from config.
-    pub async fn new() -> Result<Self, String> {
+    pub fn new() -> Self {
         let mut image_paths: HashMap<ImageKey, String> = HashMap::new();
 
-        // match block string to key
-        for (name_str, path_str) in &CONFIG.assets.blocks {
-            let block_name: Block = Block::from_string(name_str.as_str());
-            image_paths.insert(ImageKey::Block(block_name), path_str.clone());
+        fn add_image_paths<F, T>(
+            image_paths: &mut HashMap<ImageKey, String>,
+            map: &HashMap<String, String>,
+            converter: F
+        )
+            where F: Fn(&str) -> T, T: Into<ImageKey>
+        {
+            for (name_str, path_str) in map {
+                let key_variant: T = converter(name_str.as_str());
+                image_paths.insert(key_variant.into(), path_str.clone());
+            }
         }
 
-        // match player string to key
-        for (frame_str, path_str) in &CONFIG.assets.player {
-            let player_frame_key: PlayerFrameKey = PlayerFrameKey::from_string(frame_str.as_str());
-            image_paths.insert(ImageKey::Player(player_frame_key), path_str.clone());
-        }
+        add_image_paths(&mut image_paths, &CONFIG.assets.blocks, |s| Block::from_string(s));
+        add_image_paths(&mut image_paths, &CONFIG.assets.player, |s|
+            PlayerFrameKey::from_string(s)
+        );
 
-        Ok(Self {
+        Self {
             images: HashMap::new(),
             image_paths,
-        })
+        }
     }
 
-    /// Gets the loaded image that matches the key.
-    /// Loads images into the hash map the first time they are called.
-    pub async fn get_or_load_image(&mut self, key: ImageKey) -> Result<&Texture2D, String> {
-        if !self.images.contains_key(&key) {
-            let path = self.image_paths
-                .get(&key)
-                .ok_or_else(|| format!("Image path not found in config for {:?}", key))?;
-
-            if path.is_empty() {
-                return Err(format!("Attempted to load image with empty path for {:?}", key));
-            }
-
-            let texture: Texture2D = load_texture(path).await.map_err(|e|
-                format!("Failed to load texture from '{}' for {:?}: {:?}", path, key, e)
-            )?;
-
-            self.images.insert(key, texture);
+    /// Gets an image given its image key.
+    /// Ensures the image is loaded and stored if not previously.
+    pub fn image(&mut self, asset_server: AssetServer, key: ImageKey) -> Handle<Image> {
+        if let Some(handle) = self.images.get(&key) {
+            return handle.clone();
         }
 
-        Ok(self.images.get(&key).unwrap())
+        let path_option = self.image_paths.get(&key);
+
+        let loaded_handle = if let Some(path) = path_option {
+            asset_server.load(path)
+        } else {
+            warn!("Image path not found for key: {:?}", key);
+            let path: &String = self.image_paths
+                .get(&ImageKey::Block(Block::default()))
+                .expect("default texture should be loaded");
+            asset_server.load(path)
+        };
+
+        self.images.insert(key, loaded_handle.clone());
+        loaded_handle
     }
 }

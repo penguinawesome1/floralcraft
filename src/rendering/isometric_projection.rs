@@ -1,7 +1,5 @@
-use glam::{ Mat2, Vec2 };
+use glam::{ Mat2, Vec2, Vec3, IVec3 };
 use std::sync::LazyLock;
-use crate::game::physics::Position3D;
-use crate::terrain::block::BlockPosition;
 
 const TILE_WIDTH: u32 = 28;
 const TILE_HEIGHT: u32 = 28;
@@ -29,7 +27,7 @@ impl IsometricProjection {
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::rendering::IsometricProjection;
+    /// use floralcraft::rendering::isometric_projection::IsometricProjection;
     ///
     /// let proj: IsometricProjection = IsometricProjection::new();
     /// ```
@@ -52,44 +50,39 @@ impl IsometricProjection {
         }
     }
 
-    /// Converts global positions to their corresponding screen position.
+    /// Converts 3d grid positions to their corresponding screen position.
     ///
     /// # Examples
     ///
     /// ```
-    /// use floralcraft::terrain::BlockPosition;
-    /// use floralcraft::game::physics::Position3D;
-    /// use floralcraft::rendering::IsometricProjection;
+    /// use glam::{ IVec3, Vec3 };
+    /// use floralcraft::rendering::isometric_projection::IsometricProjection;
     ///
     /// let proj: IsometricProjection = IsometricProjection::new();
     ///
-    /// let pos: BlockPosition = BlockPosition::new(10, 20, 30);
-    /// let screen_pos: Position3D = proj.world_to_screen(pos);
+    /// let pos: IVec3 = IVec3::new(10, 20, 30);
+    /// let screen_pos: Vec3 = proj.world_to_screen(pos);
     ///
     /// assert!(screen_pos.x != 0.0);
     /// assert!(screen_pos.y != 0.0);
     /// assert!(screen_pos.z != 0.0);
     /// ```
-    pub fn world_to_screen(&self, world_pos: BlockPosition) -> Position3D {
+    pub fn world_to_screen(&self, world_pos: IVec3) -> Vec3 {
         let world_vec_2d: Vec2 = Vec2::new(world_pos.x as f32, world_pos.y as f32);
         let screen_vec_2d: Vec2 = self.iso_matrix_2d * world_vec_2d;
 
-        Position3D {
-            x: screen_vec_2d.x,
-            y: screen_vec_2d.y,
-            z: (world_pos.z as f32) * self.z_scale,
-        }
+        Vec3::new(screen_vec_2d.x, screen_vec_2d.y, (world_pos.z as f32) * self.z_scale)
     }
 
-    /// Converts screen positions to their corresponding global position.
-    pub fn screen_to_world(&self, screen_pos: Position3D) -> BlockPosition {
+    /// Converts screen positions to their corresponding 3d grid positions.
+    pub fn screen_to_world(&self, screen_pos: Vec3) -> IVec3 {
         let screen_vec_2d: Vec2 = Vec2::new(screen_pos.x, screen_pos.y);
         let world_vec_2d: Vec2 = self.inv_iso_matrix_2d * screen_vec_2d;
 
-        BlockPosition {
-            x: world_vec_2d.x.round() as i32,
-            y: world_vec_2d.y.round() as i32,
-            z: (screen_pos.z * self.inv_z_scale).round() as i32,
-        }
+        IVec3::new(
+            world_vec_2d.x.round() as i32,
+            world_vec_2d.y.round() as i32,
+            (screen_pos.z * self.inv_z_scale).round() as i32
+        )
     }
 }

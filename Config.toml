@@ -1,14 +1,14 @@
 [assets.player]
-idle = "./img/player/idle.png"
-run = "./img/player/run.png"
+idle = "player/idle.png"
+run = "player/run.png"
 
 [assets.blocks]
 air = ""
-grass = "./img/blocks/grass.png"
-dirt = "./img/blocks/dirt.png"
-stone = "./img/blocks/stone.png"
-bedrock = "./img/blocks/test.png"
-missing = "./img/blocks/sunflower.png"
+grass = "blocks/grass.png"
+dirt = "blocks/dirt.png"
+stone = "blocks/stone.png"
+bedrock = "blocks/test.png"
+missing = "blocks/sunflower.png"
 
 [player]
 game_mode = "creative"

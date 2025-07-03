@@ -1,48 +1,30 @@
-pub mod world_generator;
-pub mod block_generator;
+mod world_generator;
+mod block_generator;
 
-use macroquad::prelude::screen_height;
+use glam::{ Vec2, Vec3 };
 use std::collections::HashSet;
-use crate::game::physics::{ Position2D, Position3D };
-use crate::terrain::World;
-use crate::terrain::block::{ BlockPosition, Block };
-use crate::terrain::chunk::{ ChunkPosition, Chunk };
-use crate::config::CONFIG;
-use crate::rendering::PROJECTION;
-use crate::config::WorldGeneration;
-use crate::terrain_management::world_generator::{ WorldGeneratorTrait, new_generator };
+use crate::{
+    terrain::block::{ Block, BlockPosition },
+    terrain::World,
+    terrain::chunk::{ Chunk, ChunkPosition },
+    config::{ CONFIG, WorldGeneration },
+    terrain_management::world_generator::{ new_generator, WorldGeneratorTrait },
+    rendering::isometric_projection::PROJECTION,
+};
 
 pub struct BlockRenderData {
     pub block: Block,
-    pub pos: BlockPosition,
+    pub pos: Vec3,
     pub is_target: bool,
 }
 
-pub struct MouseTargets {
-    /// The solid hovered block.
-    pub solid: BlockPosition,
-    /// The replaceable block in front of the hovered block.
-    pub space: BlockPosition,
-}
-
+#[derive(bevy::prelude::Resource)]
 pub struct WorldLogic {
     pub world: World,
-    pub generator: Box<dyn WorldGeneratorTrait>,
+    generator: Box<dyn WorldGeneratorTrait>,
 }
 
 impl WorldLogic {
-    /// Creates an instance based on a mutable reference to world.
-    ///
-    /// This interface allows more complex logic behind world interactions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::terrain::World;
-    /// use floralcraft::terrain_management::WorldLogic;
-    ///
-    /// let world_logic: WorldLogic = WorldLogic::new();
-    /// ```
     pub fn new() -> Self {
         let params: &WorldGeneration = &CONFIG.world.generation;
 
@@ -54,22 +36,6 @@ impl WorldLogic {
 
     /// Generates an option with block name and screen position given a block position.
     /// Ensures the block is visible and updates the target hover height.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::terrain::chunk::ChunkPosition;
-    /// use floralcraft::terrain::block::{ Block, BlockPosition };
-    /// use floralcraft::terrain_management::WorldLogic;
-    ///
-    /// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
-    /// let world_logic: WorldLogic = WorldLogic::new();
-    /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-    ///
-    /// if let Some(_) = world_logic.block_render_data(pos, None) {
-    ///     panic!();
-    /// }
-    /// ```
     pub fn block_render_data(
         &self,
         pos: BlockPosition,
@@ -88,89 +54,14 @@ impl WorldLogic {
         }
 
         let is_target: bool = target_solid.map_or(false, |target| target == pos);
-        Some(BlockRenderData { block, pos, is_target })
+        let screen_pos: Vec3 = PROJECTION.world_to_screen(pos);
+        Some(BlockRenderData { block, pos: screen_pos, is_target })
     }
 
-    /// Progresses the world by one frame.
-    pub fn update(
-        &mut self,
-        origin: ChunkPosition,
-        radius: i32,
-        mouse_pos: Position2D,
-        is_left_click: bool,
-        is_right_click: bool
-    ) {
-        let positions = World::positions_in_square(origin, radius);
-        self.generate_missing_chunks(positions);
-        self.handle_mouse_input(mouse_pos, is_left_click, is_right_click);
+    pub fn update(&mut self, origin: ChunkPosition) {
+        let chunk_positions = World::positions_in_square(origin, CONFIG.world.render_distance);
+        self.generate_missing_chunks(chunk_positions);
         self.rebuild_dirty_chunk_meshes();
-    }
-
-    /// Finds the block the mouse is hovering over and the replaceable block next to it.
-    pub fn find_mouse_targets(&self, mouse_pos: Position2D) -> Option<MouseTargets> {
-        let mut prev_air_pos: Option<BlockPosition> = None;
-
-        for pos in Self::raycast_coords(mouse_pos) {
-            let Some(block) = self.world.block(pos) else {
-                continue; // continue if no block at position
-            };
-
-            if block.definition().is_replaceable() {
-                prev_air_pos = Some(pos);
-                continue; // continue if block is replaceable
-            }
-
-            // success if prev air block exists this pass
-            if let Some(prev_air_pos) = prev_air_pos {
-                return Some(MouseTargets { solid: pos, space: prev_air_pos });
-            }
-
-            return None; // fail if first block is solid
-        }
-
-        None
-    }
-
-    fn raycast_coords(pos: Position2D) -> impl Iterator<Item = BlockPosition> {
-        let mut positions: Vec<BlockPosition> = (0..screen_height() as i32)
-            .rev()
-            .map(move |z| {
-                let screen_pos: Position3D = Position3D::new(pos.x, pos.y + (z as f32), z as f32);
-                PROJECTION.screen_to_world(screen_pos)
-            })
-            .collect();
-
-        positions.dedup();
-        positions.into_iter()
-    }
-
-    fn handle_mouse_input(
-        &mut self,
-        mouse_pos: Position2D,
-        is_left_click: bool,
-        is_right_click: bool
-    ) {
-        match self.find_mouse_targets(mouse_pos) {
-            Some(targets) if is_left_click => self.break_block(targets.solid),
-            Some(targets) if is_right_click => self.place_block(targets.space, Block::Dirt),
-            _ => (),
-        }
-    }
-
-    fn place_block(&mut self, pos: BlockPosition, block: Block) {
-        self.world.set_block(pos, block);
-    }
-
-    fn break_block(&mut self, pos: BlockPosition) {
-        let Some(block) = self.world.block(pos) else {
-            return; // return if no block at position
-        };
-
-        if !block.definition().is_breakable() {
-            return; // return if block not breakable
-        }
-
-        self.world.set_block(pos, Block::Air);
     }
 
     fn generate_missing_chunks<I>(&mut self, positions: I)
@@ -228,4 +119,78 @@ impl WorldLogic {
             }
         })
     }
+
+    fn _raycast_coords(pos: Vec2, height: u32) -> impl Iterator<Item = BlockPosition> {
+        let mut positions: Vec<BlockPosition> = (0..height as i32)
+            .rev()
+            .map(move |z| {
+                let screen_pos: Vec3 = Vec3::new(pos.x, pos.y + (z as f32), z as f32);
+                PROJECTION.screen_to_world(screen_pos)
+            })
+            .collect();
+
+        positions.dedup();
+        positions.into_iter()
+    }
 }
+
+// pub struct MouseTargets {
+//     /// The solid hovered block.
+//     pub solid: BlockPosition,
+//     /// The replaceable block in front of the hovered block.
+//     pub space: BlockPosition,
+// }
+
+//     // /// Finds the block the mouse is hovering over and the replaceable block next to it.
+//     // pub fn find_mouse_targets(&self, mouse_pos: Vec2) -> Option<MouseTargets> {
+//     //     let mut prev_air_pos: Option<BlockPosition> = None;
+
+//     //     for pos in Self::raycast_coords(mouse_pos) {
+//     //         let Some(block) = self.world.block(pos) else {
+//     //             continue; // continue if no block at position
+//     //         };
+
+//     //         if block.definition().is_replaceable() {
+//     //             prev_air_pos = Some(pos);
+//     //             continue; // continue if block is replaceable
+//     //         }
+
+//     //         // success if prev air block exists this pass
+//     //         if let Some(prev_air_pos) = prev_air_pos {
+//     //             return Some(MouseTargets { solid: pos, space: prev_air_pos });
+//     //         }
+
+//     //         return None; // fail if first block is solid
+//     //     }
+
+//     //     None
+//     // }
+
+//     // fn handle_mouse_input(
+//     // &mut self,
+//     // mouse_pos: Vec2,
+//     // is_left_click: bool,
+//     // is_right_click: bool
+//     // ) {
+//     // match self.find_mouse_targets(mouse_pos) {
+//     // Some(targets) if is_left_click => self.break_block(targets.solid),
+//     // Some(targets) if is_right_click => self.place_block(targets.space, Block::Dirt),
+//     // _ => (),
+//     // }
+//     // }
+
+//     fn place_block(&mut self, pos: BlockPosition, block: Block) {
+//         self.world.set_block(pos, block);
+//     }
+
+//     fn break_block(&mut self, pos: BlockPosition) {
+//         let Some(block) = self.world.block(pos) else {
+//             return; // return if no block at position
+//         };
+
+//         if !block.definition().is_breakable() {
+//             return; // return if block not breakable
+//         }
+
+//         self.world.set_block(pos, Block::Air);
+//     }
