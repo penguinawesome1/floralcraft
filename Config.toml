@@ -20,13 +20,13 @@ stop_threshold = 0.01
 camera_zoom = 2.5
 
 [world]
-render_distance = 1
+render_distance = 0
 simulation_distance = 0
 num_rotations_90_deg_clockwise = 0
 target_hover_height = 5.0
 
 [world.generation]
-world_mode = "normal"
+world_mode = "flat"
 seed = 1
 dirt_height = 4
 grass_threshold = 0.2

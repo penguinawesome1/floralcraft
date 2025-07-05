@@ -1,19 +1,16 @@
 use glam::IVec3;
 use serde::{ Serialize, Deserialize };
 
-pub const SECTION_WIDTH: usize = 16;
-pub const SECTION_HEIGHT: usize = 16;
-pub const SECTION_DEPTH: usize = 16;
-pub const SECTION_VOLUME: usize = SECTION_WIDTH * SECTION_HEIGHT * SECTION_DEPTH;
-
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Section {
+pub struct Section<const W: usize, const H: usize, const D: usize> {
     data: Vec<u64>,
     palette: Vec<u64>,
     bits_per_item: u8,
 }
 
-impl Section {
+impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
+    const VOLUME: usize = W * H * D;
+
     /// Creates a new section given dimensions and initial bits per item.
     ///
     /// The more bits per item the more memory but less likely to repack.
@@ -33,7 +30,7 @@ impl Section {
     /// ```
     pub fn new(bits_per_item: u8) -> Self {
         let palette_capacity: usize = 1 << bits_per_item;
-        let total_bits_needed: usize = (bits_per_item as usize) * SECTION_VOLUME;
+        let total_bits_needed: usize = (bits_per_item as usize) * Self::VOLUME;
         let data_len: usize = (total_bits_needed + 63) / 64;
 
         let mut palette: Vec<u64> = Vec::with_capacity(palette_capacity);
@@ -113,18 +110,16 @@ impl Section {
     fn item_index(pos: IVec3) -> usize {
         debug_assert!(
             pos.x >= 0 &&
-                pos.x < (SECTION_WIDTH as i32) &&
+                pos.x < (W as i32) &&
                 pos.y >= 0 &&
-                pos.y < (SECTION_HEIGHT as i32) &&
+                pos.y < (H as i32) &&
                 pos.z >= 0 &&
-                pos.z < (SECTION_DEPTH as i32),
+                pos.z < (D as i32),
             "position should be in section limits: {:?}",
             pos
         );
 
-        (pos.x as usize) * (SECTION_HEIGHT * SECTION_DEPTH) +
-            (pos.y as usize) * SECTION_DEPTH +
-            (pos.z as usize)
+        (pos.x as usize) * (H * D) + (pos.y as usize) * D + (pos.z as usize)
     }
 
     fn palette_index(&self, item_index: usize) -> usize {
@@ -149,16 +144,16 @@ impl Section {
     fn repack(&mut self, new_bits_per_item: u8) {
         debug_assert!(self.bits_per_item <= new_bits_per_item, "repack must increase bits");
 
-        let all_palette_indices: Vec<usize> = (0..SECTION_VOLUME)
+        let all_palette_indices: Vec<usize> = (0..Self::VOLUME)
             .map(|item_index| self.palette_index(item_index))
             .collect();
 
         self.bits_per_item = new_bits_per_item;
-        let new_total_bits_needed: usize = (self.bits_per_item as usize) * SECTION_VOLUME;
+        let new_total_bits_needed: usize = (self.bits_per_item as usize) * Self::VOLUME;
         let new_data_len: usize = (new_total_bits_needed + 63) / 64;
         self.data = vec![0; new_data_len];
 
-        for item_index in 0..SECTION_VOLUME {
+        for item_index in 0..Self::VOLUME {
             let palette_index: usize = all_palette_indices[item_index];
             self.set_item_ex(item_index, palette_index);
         }
@@ -172,13 +167,13 @@ mod tests {
 
     #[test]
     fn test_new_is_empty() {
-        let section: Section = Section::new(2);
+        let section: Section<16, 16, 16> = Section::new(2);
         assert!(section.is_empty());
     }
 
     #[test]
     fn test_set_and_get_item() {
-        let mut section: Section = Section::new(4);
+        let mut section: Section<16, 16, 16> = Section::new(4);
         let pos_1: IVec3 = IVec3::new(15, 1, 1);
         let pos_2: IVec3 = IVec3::new(15, 1, 2);
 
@@ -192,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_repack() {
-        let mut section: Section = Section::new(1);
+        let mut section: Section<16, 16, 16> = Section::new(1);
         let pos: IVec3 = IVec3::new(3, 5, 3);
 
         section.set_item(pos, 30);

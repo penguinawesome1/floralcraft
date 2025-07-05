@@ -70,7 +70,7 @@ impl World {
     }
 
     /// Gets an option of a mutable chunk reference.
-    pub fn get_chunk_mut(&mut self, pos: ChunkPosition) -> Option<&mut Chunk> {
+    pub fn mut_chunk(&mut self, pos: ChunkPosition) -> Option<&mut Chunk> {
         self.chunks.get_mut(&pos)
     }
 
@@ -90,7 +90,7 @@ impl World {
     pub fn set_block(&mut self, pos: BlockPosition, block: Block) -> Option<()> {
         let chunk_pos: ChunkPosition = Self::block_to_chunk_pos(pos);
         let local_pos: BlockPosition = Self::global_to_local_pos(pos);
-        self.get_chunk_mut(chunk_pos)?.set_block(local_pos, block);
+        self.mut_chunk(chunk_pos)?.set_block(local_pos, block);
         self.mark_chunks_dirty_with_adj(chunk_pos);
         Some(())
     }
@@ -189,6 +189,15 @@ impl World {
         for adj_pos in Self::chunk_offsets(pos) {
             self.dirty_chunks.insert(adj_pos);
         }
+    }
+
+    pub fn global_coords_in_chunks<I>(chunk_positions: I) -> impl Iterator<Item = BlockPosition>
+        where I: Iterator<Item = ChunkPosition>
+    {
+        chunk_positions.flat_map(move |chunk_pos| {
+            let chunk_block_pos: BlockPosition = World::chunk_to_block_pos(chunk_pos);
+            Chunk::chunk_coords().map(move |pos| chunk_block_pos + pos)
+        })
     }
 
     fn chunk_offsets(pos: ChunkPosition) -> impl Iterator<Item = ChunkPosition> {

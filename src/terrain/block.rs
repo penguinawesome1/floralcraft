@@ -42,16 +42,6 @@ impl Block {
         }
     }
 
-    /// Converts u32 to corresponding enum value.
-    pub const fn from_u32(value: u32) -> Self {
-        let value_u8: u8 = value as u8;
-        if value_u8 < (Self::Length as u8) {
-            unsafe { std::mem::transmute(value_u8) }
-        } else {
-            Self::Missing
-        }
-    }
-
     /// Returns the block definition associated with the block name instance.
     ///
     /// Allows access to default properties such as if the air block is collidable.
@@ -77,6 +67,17 @@ impl Block {
             Self::Bedrock => BlockDefinition::BEDROCK,
             Self::Missing => BlockDefinition::MISSING,
             Self::Length => unreachable!(),
+        }
+    }
+}
+
+impl From<u64> for Block {
+    fn from(value: u64) -> Self {
+        let value_u8: u8 = value as u8;
+        if value_u8 < (Self::Length as u8) {
+            unsafe { std::mem::transmute(value_u8) }
+        } else {
+            Self::Missing
         }
     }
 }
@@ -165,20 +166,6 @@ impl BlockDefinition {
     pub const STONE: Self = Self::new(Block::Stone, true, true, true, true, false);
     pub const BEDROCK: Self = Self::new(Block::Bedrock, true, true, false, true, false);
     pub const MISSING: Self = Self::new(Block::Missing, false, true, false, true, false);
-
-    /// Returns the `Block` (type) of this block.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::terrain::block::{ BlockDefinition, Block };
-    ///
-    /// assert_eq!(BlockDefinition::AIR.get_name(), Block::Air);
-    /// assert_eq!(BlockDefinition::BEDROCK.get_name(), Block::Bedrock);
-    /// ```
-    pub const fn get_name(&self) -> Block {
-        Block::from_u32(self.data & Self::NAME_MASK)
-    }
 
     /// Checks if this block is hoverable.
     ///

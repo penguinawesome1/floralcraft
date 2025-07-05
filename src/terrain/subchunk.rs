@@ -1,13 +1,87 @@
 use serde::{ Serialize, Deserialize };
-use crate::terrain::section::Section;
 use crate::terrain::{ Block, BlockPosition };
+
+pub const SUBCHUNK_WIDTH: usize = 16;
+pub const SUBCHUNK_HEIGHT: usize = 16;
+pub const SUBCHUNK_DEPTH: usize = 16;
+
+type ChunkSection = crate::terrain::section::Section<
+    SUBCHUNK_WIDTH,
+    SUBCHUNK_HEIGHT,
+    SUBCHUNK_DEPTH
+>;
+
+macro_rules! impl_getter {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        Block,
+        $section:ident
+    ) => {
+        $(#[$meta])*
+        pub fn $name(&self, pos: BlockPosition) -> Block {
+            (self.$section.as_ref().map_or(0, |section| section.item(pos))).into()
+        }
+    };
+
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        bool,
+        $section:ident
+    ) => {
+        $(#[$meta])*
+        pub fn $name(&self, pos: BlockPosition) -> bool {
+            self.$section.as_ref().map_or(0, |section| section.item(pos)) == 0
+        }
+    };
+
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $return_type:ty,
+        $section:ident
+    ) => {
+        $(#[$meta])*
+        pub fn $name(&self, pos: BlockPosition) -> $return_type {
+            self.$section.as_ref().map_or(0, |section| section.item(pos)) as $return_type
+        }
+    };
+}
+
+macro_rules! impl_setter {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $value_type:ty,
+        $section:ident,
+        $bits_per_item:expr
+    ) => {
+        $(#[$meta])*
+        pub fn $name(&mut self, pos: BlockPosition, value: $value_type) {
+            let value_u64: u64 = value.into();
+            if value_u64 == 0 && self.$section.is_none() {
+                return; // return is placement is redundant
+            }
+
+            let section: &mut ChunkSection = self.$section.get_or_insert_with(
+                || ChunkSection::new($bits_per_item) // create new section if needed
+            );
+            section.set_item(pos, value_u64);
+
+            if section.is_empty() {
+                self.$section = None; // convert empty section to none
+            }
+        }
+    };
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Subchunk {
-    blocks: Option<Section>,
-    sky_light: Option<Section>,
-    block_light: Option<Section>,
-    exposed_blocks: Option<Section>,
+    blocks: Option<ChunkSection>,
+    sky_light: Option<ChunkSection>,
+    block_light: Option<ChunkSection>,
+    exposed_blocks: Option<ChunkSection>,
 }
 
 impl Subchunk {
@@ -34,87 +108,84 @@ impl Subchunk {
         }
     }
 
-    /// Gets the block given its sub position.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use floralcraft::terrain::subchunk::Subchunk;
-    /// use floralcraft::terrain::block::{ Block, BlockPosition };
-    ///
-    /// let mut subchunk: Subchunk = Subchunk::new();
-    /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-    ///
-    /// subchunk.set_block(pos, Block::Dirt);
-    /// let block: Block = subchunk.block(pos);
-    ///
-    /// assert_eq!(block, Block::Dirt);
-    /// ```
-    pub fn block(&self, pos: BlockPosition) -> Block {
-        Block::from_u32(self.blocks.as_ref().map_or(0, |section| section.item(pos)) as u32)
-    }
+    impl_getter!(
+        /// Gets the block given its sub position.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use floralcraft::terrain::subchunk::Subchunk;
+        /// use floralcraft::terrain::block::{ Block, BlockPosition };
+        ///
+        /// let mut subchunk: Subchunk = Subchunk::new();
+        /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
+        ///
+        /// subchunk.set_block(pos, Block::Dirt);
+        /// let block: Block = subchunk.block(pos);
+        ///
+        /// assert_eq!(block, Block::Dirt);
+        /// ```
+        block,
+        Block,
+        blocks
+    );
 
-    /// Sets block given its sub position.
-    pub fn set_block(&mut self, pos: BlockPosition, block: Block) {
-        Self::set_section_item(&mut self.blocks, pos, block, 4);
-    }
+    impl_getter!(
+        /// Gets skylight given its sub position.
+        sky_light,
+        u8,
+        sky_light
+    );
 
-    /// Gets skylight given its sub position.
-    pub fn sky_light(&self, pos: BlockPosition) -> u64 {
-        self.sky_light.as_ref().map_or(0, |section| section.item(pos))
-    }
+    impl_getter!(
+        /// Gets block light given its sub position.
+        block_light,
+        u8,
+        block_light
+    );
 
-    /// Sets skylight given its sub position.
-    pub fn set_sky_light(&mut self, pos: BlockPosition, value: u8) {
-        Self::set_section_item(&mut self.sky_light, pos, value, 4);
-    }
+    impl_getter!(
+        /// Gets if block is exposed given its sub position.
+        block_exposed,
+        bool,
+        exposed_blocks
+    );
 
-    /// Gets block light given its sub position.
-    pub fn block_light(&self, pos: BlockPosition) -> u64 {
-        self.block_light.as_ref().map_or(0, |section| section.item(pos))
-    }
+    impl_setter!(
+        /// Sets block given its sub position.
+        set_block,
+        Block,
+        blocks,
+        4
+    );
 
-    /// Sets block light given its sub position.
-    pub fn set_block_light(&mut self, pos: BlockPosition, value: u8) {
-        Self::set_section_item(&mut self.block_light, pos, value, 4);
-    }
+    impl_setter!(
+        /// Sets skylight given its sub position.
+        set_sky_light,
+        u8,
+        sky_light,
+        4
+    );
 
-    /// Gets if block is exposed given its sub position.
-    pub fn block_exposed(&self, pos: BlockPosition) -> bool {
-        self.exposed_blocks.as_ref().map_or(0, |section| section.item(pos)) != 0
-    }
+    impl_setter!(
+        /// Sets block light given its sub position.
+        set_block_light,
+        u8,
+        block_light,
+        4
+    );
 
-    /// Sets if block is exposed given its sub position.
-    pub fn set_block_exposed(&mut self, pos: BlockPosition, value: bool) {
-        Self::set_section_item(&mut self.exposed_blocks, pos, value, 4);
-    }
+    impl_setter!(
+        /// Sets if block is exposed given its sub position.
+        set_block_exposed,
+        bool,
+        exposed_blocks,
+        4
+    );
 
     /// Returns a bool for if all sections are empty.
     pub fn is_empty(&self) -> bool {
         self.blocks.is_none()
-    }
-
-    fn set_section_item<T>(
-        section_option: &mut Option<Section>,
-        pos: BlockPosition,
-        value: T,
-        bits_per_item: u8
-    )
-        where T: Into<u64>
-    {
-        let value_u64: u64 = value.into();
-        if value_u64 == 0 && section_option.is_none() {
-            return; // return is placement is redundant
-        }
-
-        let section: &mut Section = section_option.get_or_insert_with(
-            || Section::new(bits_per_item) // create new section if needed
-        );
-        section.set_item(pos, value_u64);
-
-        if section.is_empty() {
-            *section_option = None; // convert empty section to none
-        }
     }
 }
 
