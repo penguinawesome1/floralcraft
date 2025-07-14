@@ -24,14 +24,7 @@ pub const BLOCK_OFFSETS: [BlockPosition; 6] = [
 pub type ChunkPosition = glam::IVec2;
 
 macro_rules! impl_getter {
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        $return_type:ty,
-        $sub_method:ident,
-        $default:expr
-    ) => {
-        $(#[$meta])*
+    ($name:ident, $return_type:ty, $sub_method:ident, $default:expr) => {
         pub fn $name(&self, pos: BlockPosition) -> $return_type {
             if let Some(subchunk) = self.subchunk(pos.z) {
                 let sub_pos: BlockPosition = Self::local_to_sub(pos);
@@ -44,14 +37,7 @@ macro_rules! impl_getter {
 }
 
 macro_rules! impl_setter {
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        $value_type:ty,
-        $sub_method:ident,
-        $default:expr
-    ) => {
-        $(#[$meta])*
+    ($name:ident, $value_type:ty, $sub_method:ident, $default:expr) => {
         pub fn $name(&mut self, pos: BlockPosition, value: $value_type) {
             let index: usize = Self::subchunk_index(pos.z);
             let subchunk_opt: &mut Option<Subchunk> = &mut self.subchunks[index];
@@ -92,89 +78,19 @@ impl Chunk {
     pub fn new(pos: ChunkPosition) -> Self {
         Self {
             pos,
-            subchunks: std::array::from_fn(|_| None),
+            subchunks: Default::default(),
         }
     }
 
-    impl_getter!(
-        /// Gets the block given its local position.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// use floralcraft::terrain::chunk::{ Chunk, ChunkPosition };
-        /// use floralcraft::terrain::block::{ Block, BlockPosition };
-        ///
-        /// let chunk_pos: ChunkPosition = ChunkPosition::new(0, 0);
-        /// let mut chunk: Chunk = Chunk::new(chunk_pos);
-        /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-        ///
-        /// chunk.set_block(pos, Block::Dirt);
-        /// let block: Block = chunk.block(pos);
-        ///
-        /// assert_eq!(block, Block::Dirt);
-        /// ```
-        block,
-        Block,
-        block,
-        Block::Air
-    );
+    impl_getter!(block, Block, block, Block::Air);
+    impl_getter!(sky_light, u8, sky_light, 0);
+    impl_getter!(block_light, u8, block_light, 0);
+    impl_getter!(block_exposed, bool, block_exposed, false);
 
-    impl_getter!(
-        /// Gets skylight given its local position.
-        sky_light,
-        u8,
-        sky_light,
-        0
-    );
-
-    impl_getter!(
-        /// Gets block light given its local position.
-        block_light,
-        u8,
-        block_light,
-        0
-    );
-
-    impl_getter!(
-        /// Gets if block is exposed given its local position.
-        block_exposed,
-        bool,
-        block_exposed,
-        false
-    );
-
-    impl_setter!(
-        /// Sets block given its local position.
-        set_block,
-        Block,
-        set_block,
-        Block::Air
-    );
-
-    impl_setter!(
-        /// Sets skylight given its local position.
-        set_sky_light,
-        u8,
-        set_sky_light,
-        0
-    );
-
-    impl_setter!(
-        /// Sets block light given its local position.
-        set_block_light,
-        u8,
-        set_block_light,
-        0
-    );
-
-    impl_setter!(
-        /// Sets if block is exposed given its local position.
-        set_block_exposed,
-        bool,
-        set_block_exposed,
-        false
-    );
+    impl_setter!(set_block, Block, set_block, Block::Air);
+    impl_setter!(set_sky_light, u8, set_sky_light, 0);
+    impl_setter!(set_block_light, u8, set_block_light, 0);
+    impl_setter!(set_block_exposed, bool, set_block_exposed, false);
 
     /// Returns a bool for if all subchunks are empty.
     pub fn is_empty(&self) -> bool {

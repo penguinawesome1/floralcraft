@@ -1,6 +1,5 @@
 pub mod block;
 pub mod chunk;
-pub mod section;
 pub mod subchunk;
 
 use std::collections::{ HashMap, HashSet };

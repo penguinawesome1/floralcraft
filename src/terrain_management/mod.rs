@@ -55,6 +55,10 @@ impl WorldLogic {
         }
 
         let block: Block = self.world.block(pos).expect("position should exist inside chunk");
+        if !block.definition().is_visible() {
+            return None;
+        }
+
         let is_target: bool = target_solid.map_or(false, |target| target == pos);
         let screen_pos: Vec3 = PROJECTION.world_to_screen(pos);
         Some(BlockRenderData { block, pos: screen_pos, is_target })

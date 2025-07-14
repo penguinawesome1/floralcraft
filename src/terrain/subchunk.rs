@@ -5,44 +5,22 @@ pub const SUBCHUNK_WIDTH: usize = 16;
 pub const SUBCHUNK_HEIGHT: usize = 16;
 pub const SUBCHUNK_DEPTH: usize = 16;
 
-type ChunkSection = crate::terrain::section::Section<
-    SUBCHUNK_WIDTH,
-    SUBCHUNK_HEIGHT,
-    SUBCHUNK_DEPTH
->;
+type ChunkSection = palette_bitmap::Section<SUBCHUNK_WIDTH, SUBCHUNK_HEIGHT, SUBCHUNK_DEPTH>;
 
 macro_rules! impl_getter {
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        Block,
-        $section:ident
-    ) => {
-        $(#[$meta])*
+    ($name:ident, Block, $section:ident) => {
         pub fn $name(&self, pos: BlockPosition) -> Block {
             (self.$section.as_ref().map_or(0, |section| section.item(pos))).into()
         }
     };
 
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        bool,
-        $section:ident
-    ) => {
-        $(#[$meta])*
+    ($name:ident, bool, $section:ident) => {
         pub fn $name(&self, pos: BlockPosition) -> bool {
             self.$section.as_ref().map_or(0, |section| section.item(pos)) == 0
         }
     };
 
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        $return_type:ty,
-        $section:ident
-    ) => {
-        $(#[$meta])*
+    ($name:ident, $return_type:ty, $section:ident) => {
         pub fn $name(&self, pos: BlockPosition) -> $return_type {
             self.$section.as_ref().map_or(0, |section| section.item(pos)) as $return_type
         }
@@ -50,14 +28,7 @@ macro_rules! impl_getter {
 }
 
 macro_rules! impl_setter {
-    (
-        $(#[$meta:meta])*
-        $name:ident,
-        $value_type:ty,
-        $section:ident,
-        $bits_per_item:expr
-    ) => {
-        $(#[$meta])*
+    ($name:ident, $value_type:ty, $section:ident, $bits_per_item:expr) => {
         pub fn $name(&mut self, pos: BlockPosition, value: $value_type) {
             let value_u64: u64 = value.into();
             if value_u64 == 0 && self.$section.is_none() {
@@ -108,80 +79,15 @@ impl Subchunk {
         }
     }
 
-    impl_getter!(
-        /// Gets the block given its sub position.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// use floralcraft::terrain::subchunk::Subchunk;
-        /// use floralcraft::terrain::block::{ Block, BlockPosition };
-        ///
-        /// let mut subchunk: Subchunk = Subchunk::new();
-        /// let pos: BlockPosition = BlockPosition::new(0, 0, 0);
-        ///
-        /// subchunk.set_block(pos, Block::Dirt);
-        /// let block: Block = subchunk.block(pos);
-        ///
-        /// assert_eq!(block, Block::Dirt);
-        /// ```
-        block,
-        Block,
-        blocks
-    );
+    impl_getter!(block, Block, blocks);
+    impl_getter!(sky_light, u8, sky_light);
+    impl_getter!(block_light, u8, block_light);
+    impl_getter!(block_exposed, bool, exposed_blocks);
 
-    impl_getter!(
-        /// Gets skylight given its sub position.
-        sky_light,
-        u8,
-        sky_light
-    );
-
-    impl_getter!(
-        /// Gets block light given its sub position.
-        block_light,
-        u8,
-        block_light
-    );
-
-    impl_getter!(
-        /// Gets if block is exposed given its sub position.
-        block_exposed,
-        bool,
-        exposed_blocks
-    );
-
-    impl_setter!(
-        /// Sets block given its sub position.
-        set_block,
-        Block,
-        blocks,
-        4
-    );
-
-    impl_setter!(
-        /// Sets skylight given its sub position.
-        set_sky_light,
-        u8,
-        sky_light,
-        4
-    );
-
-    impl_setter!(
-        /// Sets block light given its sub position.
-        set_block_light,
-        u8,
-        block_light,
-        4
-    );
-
-    impl_setter!(
-        /// Sets if block is exposed given its sub position.
-        set_block_exposed,
-        bool,
-        exposed_blocks,
-        4
-    );
+    impl_setter!(set_block, Block, blocks, 4);
+    impl_setter!(set_sky_light, u8, sky_light, 4);
+    impl_setter!(set_block_light, u8, block_light, 4);
+    impl_setter!(set_block_exposed, bool, exposed_blocks, 4);
 
     /// Returns a bool for if all sections are empty.
     pub fn is_empty(&self) -> bool {

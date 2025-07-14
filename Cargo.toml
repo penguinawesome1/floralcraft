@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+palette_bitmap = { path = "../palette_bitmap", features = ["serde"] }
+bevy = "0.16.1"
 glam = { version = "0.30.4", features = ["serde"] }
 itertools = "0.14.0"
 noise = "0.9.0"
@@ -13,4 +15,3 @@ rand_pcg = "0.9.0"
 serde = { version = "1.0.219", features = ["derive"] }
 toml = "0.8.23"
 bincode = "1.3"
-bevy = "0.16.1"
