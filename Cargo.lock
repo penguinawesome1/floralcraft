@@ -68,6 +68,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "ahash"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
+dependencies = [
+ "cfg-if",
+ "getrandom 0.3.3",
+ "once_cell",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -201,9 +214,9 @@ dependencies = [
 
 [[package]]
 name = "async-channel"
-version = "2.3.1"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89b47800b0be77592da0afd425cc03468052844aff33b84e33cc696f64e77b6a"
+checksum = "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2"
 dependencies = [
  "concurrent-queue",
  "event-listener-strategy",
@@ -1417,10 +1430,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "block_dictionary"
+version = "0.1.0"
+source = "git+https://github.com/penguinawesome1/block_dictionary#173fa3fa5306d1b4392513a7ace80ae2ae1dce38"
+dependencies = [
+ "indexmap",
+ "serde",
+ "thiserror 2.0.12",
+ "toml",
+]
+
+[[package]]
 name = "blocking"
-version = "1.6.1"
+version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "703f41c54fc768e63e091340b424302bb1c29ef4aa0c7f10fe849dfb114d29ea"
+checksum = "e83f8d02be6967315521be875afa792a316e28d57b5a2d401897e2a7921b7f21"
 dependencies = [
  "async-channel",
  "async-task",
@@ -1489,9 +1513,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.27"
+version = "1.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
+checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
 dependencies = [
  "jobserver",
  "libc",
@@ -1727,9 +1751,9 @@ dependencies = [
 
 [[package]]
 name = "crc32fast"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
 ]
@@ -1990,16 +2014,35 @@ dependencies = [
 name = "floralcraft"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "bevy",
  "bincode",
+ "block_dictionary",
+ "floralcraft_terrain",
  "glam 0.30.4",
+ "indexmap",
+ "isometric_projection",
  "itertools 0.14.0",
  "noise",
  "once_cell",
  "rand 0.9.1",
  "rand_pcg",
  "serde",
+ "thiserror 2.0.12",
  "toml",
+]
+
+[[package]]
+name = "floralcraft_terrain"
+version = "0.1.0"
+source = "git+https://github.com/penguinawesome1/floralcraft_terrain#72ad28a763124b7b7bc4433b91d87d7f2b335ea3"
+dependencies = [
+ "ahash",
+ "glam 0.30.4",
+ "itertools 0.14.0",
+ "palette_bitmap",
+ "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -2477,6 +2520,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "isometric_projection"
+version = "0.1.0"
+source = "git+https://github.com/penguinawesome1/isometric_projection#5ddf07c18f7a720c8524f63f7069fd7518e27074"
+dependencies = [
+ "glam 0.30.4",
+]
+
+[[package]]
 name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2697,9 +2748,9 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "memmap2"
-version = "0.9.5"
+version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
+checksum = "483758ad303d734cec05e5c12b41d7e93e6a6390c5e9dae6bdeb7c1259012d28"
 dependencies = [
  "libc",
 ]
@@ -3236,6 +3287,16 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "palette_bitmap"
+version = "0.1.0"
+source = "git+https://github.com/penguinawesome1/palette_bitmap.git?branch=main#7d329dee1e2ff3bdf4ef1043c1b5509e909df0b7"
+dependencies = [
+ "glam 0.30.4",
+ "serde",
+ "thiserror 2.0.12",
+]
 
 [[package]]
 name = "parking"
@@ -5152,9 +5213,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74c7b26e3480b707944fc872477815d29a8e429d2f93a1ce000f5fa84a15cbcd"
+checksum = "f3edebf492c8125044983378ecb5766203ad3b4c2f7a922bd7dd207f6d443e95"
 dependencies = [
  "memchr",
 ]
@@ -5221,9 +5282,9 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "xml-rs"
-version = "0.8.26"
+version = "0.8.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a62ce76d9b56901b19a74f19431b0d8b3bc7ca4ad685a746dfd78ca8f4fc6bda"
+checksum = "6fd8403733700263c6eb89f192880191f1b83e332f7a20371ddcf421c4a337c7"
 
 [[package]]
 name = "yazi"

@@ -1,35 +1,54 @@
-use noise::{ Fbm, SuperSimplex, NoiseFn, MultiFractal, RidgedMulti, Seedable };
-use crate::terrain::chunk::CHUNK_DEPTH;
 use crate::config::{ NoiseParams, WorldGeneration };
-use crate::terrain::block::{ Block, BlockPosition };
+use crate::world_controller::{ CHUNK_DEPTH, SizedWorld };
+use floralcraft_terrain::{ BlockPosition, ChunkPosition };
+use noise::{ Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, SuperSimplex };
 
-pub trait BlockGenerator: Send + Sync + Clone + 'static {
+#[repr(u8)]
+pub enum Block {
+    // this must match the order of the toml block file!
+    Air,
+    Grass,
+    Dirt,
+    Stone,
+    Bedrock,
+}
+
+pub trait BlockGenerator: Send + Sync + 'static {
+    fn generate_chunk_blocks<'a>(
+        &'a self,
+        chunk_pos: ChunkPosition,
+        params: &'a WorldGeneration
+    ) -> Vec<(BlockPosition, u8)> {
+        SizedWorld::chunk_coords(chunk_pos)
+            .map(|pos| (pos, self.choose_block(pos, params) as u8))
+            .collect()
+    }
+
     /// Returns the noise calculated block from the passed global position.
+    /// Not intended to be called outside of generate chunk blocks.
     fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> Block;
 }
 
-#[derive(Clone)]
 pub struct SkyblockGenerator;
 
 impl BlockGenerator for SkyblockGenerator {
     fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
         match pos.z {
             0 => Block::Bedrock,
-            z if z < 4 => Block::Dirt,
+            1..=3 => Block::Dirt,
             4 => Block::Grass,
             _ => Block::Air,
         }
     }
 }
 
-#[derive(Clone)]
 pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
     fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
         match pos.z {
             0 => Block::Bedrock,
-            z if z < 4 => Block::Dirt,
+            1..=3 => Block::Dirt,
             4 => Block::Grass,
             _ => Block::Air,
         }

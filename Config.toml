@@ -26,7 +26,7 @@ num_rotations_90_deg_clockwise = 0
 target_hover_height = 5.0
 
 [world.generation]
-world_mode = "flat"
+world_mode = "normal"
 seed = 1
 dirt_height = 4
 grass_threshold = 0.2

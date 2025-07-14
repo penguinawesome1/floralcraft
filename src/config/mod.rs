@@ -1,25 +1,23 @@
 use serde::Deserialize;
-use std::error::Error;
-use std::fs::read_to_string;
-use std::collections::HashMap;
-use std::sync::LazyLock;
+use thiserror::Error;
+use std::io;
+use std::fs;
+use indexmap::IndexMap;
 
-pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
-    load_config().expect("Failed to load config")
-});
+#[derive(Debug, Error)]
+pub enum CliError {
+    #[error("I/O error: {0}")] IoError(#[from] io::Error),
+    #[error("TOML deserialization error: {0}")] TomlDeError(#[from] toml::de::Error),
+}
 
-fn load_config() -> Result<Config, Box<dyn Error>> {
-    let toml_str = read_to_string("Config.toml").map_err(|e|
-        format!("Could not read Config.toml: {}", e)
-    )?;
-    let config: Config = toml
-        ::from_str(&toml_str)
-        .map_err(|e| format!("Could not parse Config.toml: {}", e))?;
-
+#[must_use]
+pub fn load_config(path: &str) -> Result<Config, CliError> {
+    let contents: String = fs::read_to_string(path)?;
+    let config: Config = toml::from_str(&contents)?;
     Ok(config)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, bevy::prelude::Resource)]
 pub struct Config {
     pub assets: AssetsConfig,
     pub player: PlayerConfig,
@@ -28,8 +26,8 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct AssetsConfig {
-    pub player: HashMap<String, String>,
-    pub blocks: HashMap<String, String>,
+    pub player: IndexMap<String, String>,
+    pub blocks: IndexMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,8 +51,18 @@ pub struct WorldConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub enum WorldMode {
+    #[serde(rename = "flat")]
+    Flat,
+    #[serde(rename = "skyblock")]
+    Skyblock,
+    #[serde(other)]
+    Normal,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct WorldGeneration {
-    pub world_mode: String,
+    pub world_mode: WorldMode,
     pub seed: u32,
     pub dirt_height: i32,
     pub grass_threshold: f64,
@@ -66,7 +74,7 @@ pub struct WorldGeneration {
     pub cave_noise: NoiseParams,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct NoiseParams {
     pub octaves: usize,
     pub frequency: f64,

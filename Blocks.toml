@@ -1,0 +1,34 @@
+[air] #0
+is_hoverable = false
+is_visible = false
+is_breakable = false
+is_collidable = false
+is_replaceable = true
+
+[grass] #1
+is_hoverable = true
+is_visible = true
+is_breakable = true
+is_collidable = true
+is_replaceable = false
+
+[dirt] #2
+is_hoverable = true
+is_visible = true
+is_breakable = true
+is_collidable = true
+is_replaceable = false
+
+[stone] #3
+is_hoverable = true
+is_visible = true
+is_breakable = true
+is_collidable = true
+is_replaceable = false
+
+[bedrock] #4
+is_hoverable = true
+is_visible = true
+is_breakable = false
+is_collidable = true
+is_replaceable = false
