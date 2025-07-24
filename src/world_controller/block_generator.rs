@@ -1,43 +1,30 @@
 use crate::config::{ NoiseParams, WorldGeneration };
-use crate::world_controller::{ CHUNK_DEPTH, SizedWorld };
-use floralcraft_terrain::{ BlockPosition, ChunkPosition };
+use crate::world_controller::CHUNK_DEPTH;
+use floralcraft_terrain::BlockPosition;
 use noise::{ Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, SuperSimplex };
 
-#[repr(u8)]
-pub enum Block {
-    // this must match the order of the toml block file!
-    Air,
-    Grass,
-    Dirt,
-    Stone,
-    Bedrock,
-}
+// this must match the order of the toml block file!
+const AIR: u8 = 0;
+const GRASS: u8 = 1;
+const DIRT: u8 = 2;
+const STONE: u8 = 3;
+const BEDROCK: u8 = 4;
 
 pub trait BlockGenerator: Send + Sync + 'static {
-    fn generate_chunk_blocks<'a>(
-        &'a self,
-        chunk_pos: ChunkPosition,
-        params: &'a WorldGeneration
-    ) -> Vec<(BlockPosition, u8)> {
-        SizedWorld::chunk_coords(chunk_pos)
-            .map(|pos| (pos, self.choose_block(pos, params) as u8))
-            .collect()
-    }
-
     /// Returns the noise calculated block from the passed global position.
     /// Not intended to be called outside of generate chunk blocks.
-    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> Block;
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8;
 }
 
 pub struct SkyblockGenerator;
 
 impl BlockGenerator for SkyblockGenerator {
-    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> u8 {
         match pos.z {
-            0 => Block::Bedrock,
-            1..=3 => Block::Dirt,
-            4 => Block::Grass,
-            _ => Block::Air,
+            0 => BEDROCK,
+            1..=3 => DIRT,
+            4 => GRASS,
+            _ => AIR,
         }
     }
 }
@@ -45,12 +32,12 @@ impl BlockGenerator for SkyblockGenerator {
 pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
-    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> Block {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> u8 {
         match pos.z {
-            0 => Block::Bedrock,
-            1..=3 => Block::Dirt,
-            4 => Block::Grass,
-            _ => Block::Air,
+            0 => BEDROCK,
+            1..=3 => DIRT,
+            4 => GRASS,
+            _ => AIR,
         }
     }
 }
@@ -94,14 +81,14 @@ impl NormalGenerator {
 }
 
 impl BlockGenerator for NormalGenerator {
-    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> Block {
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8 {
         if pos.z == 0 {
-            return Block::Bedrock; // place bedrock at world floor
+            return BEDROCK; // place bedrock at world floor
         }
 
         let density_val: f64 = self.get_density_val(pos);
         if density_val < params.cave_threshold {
-            return Block::Air; // carve out caves
+            return AIR; // carve out caves
         }
 
         let height_val: f64 = self.get_height_val(pos);
@@ -111,13 +98,13 @@ impl BlockGenerator for NormalGenerator {
         let dirt_height: i32 = height - params.dirt_height;
 
         if pos.z > height {
-            Block::Air // carve surface level
+            AIR // carve surface level
         } else if pos.z == height {
-            Block::Grass // place grass at surface
+            GRASS // place grass at surface
         } else if pos.z >= dirt_height {
-            Block::Dirt
+            DIRT
         } else {
-            Block::Stone
+            STONE
         }
     }
 }
