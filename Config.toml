@@ -1,37 +1,26 @@
-[assets.player]
-idle = "player/idle.png"
-run = "player/run.png"
-
-[assets.blocks]
-air = ""
-grass = "blocks/grass.png"
-dirt = "blocks/dirt.png"
-stone = "blocks/stone.png"
-bedrock = "blocks/test.png"
-missing = "blocks/sunflower.png"
-
 [player]
 game_mode = "creative"
 gravity_per_second = 130.0
 friction_per_second = 0.000_5
-acceleration_per_second = 1_500.0
+player_speed = 200.0
 jump_velocity = 50.0
-stop_threshold = 0.01
-camera_zoom = 2.5
+camera_zoom_speed = 0.1
+camera_decay_rate = 5.0
 
 [world]
-render_distance = 1
+render_distance = 6
 simulation_distance = 0
 num_rotations_90_deg_clockwise = 0
 target_hover_height = 5.0
 
 [world.generation]
 world_mode = "normal"
-seed = 2
+seed = 1
 dirt_height = 4
 grass_threshold = 0.2
-minimum_air_height = 32
-cave_threshold = -0.5
+lowest_surface_height = 50
+highest_surface_height = 100
+cave_threshold = 0.03
 
 [world.generation.base_noise]
 octaves = 2
@@ -40,13 +29,13 @@ lacunarity = 2.0
 persistence = 0.5
 
 [world.generation.mountain_ridge_noise]
-octaves = 3
+octaves = 4
 frequency = 0.008
-lacunarity = 2.0
-persistence = 0.7
+lacunarity = 2.1
+persistence = 0.65
 
 [world.generation.cave_noise]
-octaves = 1
-frequency = 0.08
+octaves = 3
+frequency = 0.002
 lacunarity = 2.0
-persistence = 1.0
+persistence = 0.8

@@ -7,16 +7,20 @@ use block_dictionary::definition;
 use block_generator::{BlockGenerator, FlatGenerator, NormalGenerator, SkyblockGenerator};
 use floralcraft_terrain::{BlockPosition, ChunkAccessError, ChunkPosition, World};
 use glam::IVec3;
+use std::collections::HashSet;
 
 pub const CHUNK_WIDTH: usize = 16;
 pub const CHUNK_HEIGHT: usize = 16;
 pub const SUBCHUNK_DEPTH: usize = 16;
-pub const NUM_SUBCHUNKS: usize = 4;
+pub const NUM_SUBCHUNKS: usize = 16;
 
 pub const CHUNK_DEPTH: usize = SUBCHUNK_DEPTH * NUM_SUBCHUNKS;
 pub const CHUNK_VOLUME: usize = CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH;
 
 pub type SizedWorld = World<CHUNK_WIDTH, CHUNK_HEIGHT, SUBCHUNK_DEPTH, NUM_SUBCHUNKS>;
+
+#[derive(Resource, Default)]
+pub struct DirtyChunks(pub HashSet<ChunkPosition>);
 
 #[derive(Resource)]
 pub struct WorldController {
@@ -36,12 +40,21 @@ impl WorldController {
         }
     }
 
-    pub fn update(&mut self, params: &WorldGeneration, origin: ChunkPosition, radius: u32) {
-        for chunk_pos in SizedWorld::positions_in_square(origin, radius) {
+    pub fn update<I>(
+        &mut self,
+        params: &WorldGeneration,
+        dirty_chunks: &mut DirtyChunks,
+        positions: I,
+    ) where
+        I: Iterator<Item = ChunkPosition>,
+    {
+        for chunk_pos in positions {
             if self.world.add_default_chunk(chunk_pos).is_ok() {
                 let _ = self
                     .set_up_chunk(chunk_pos, params)
                     .map_err(|e| eprintln!("Failed to set up chunk {}: {:?}", chunk_pos, e));
+
+                dirty_chunks.0.insert(chunk_pos);
             }
         }
     }

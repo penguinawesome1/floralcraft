@@ -1,8 +1,8 @@
 use block_dictionary::{Block, load_blocks};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
-static BLOCK_DICTIONARY: Lazy<Result<Vec<Block>, block_dictionary::CliError>> =
-    Lazy::new(|| load_blocks("Blocks.toml"));
+static BLOCK_DICTIONARY: LazyLock<Result<Vec<Block>, block_dictionary::CliError>> =
+    LazyLock::new(|| load_blocks("Blocks.toml"));
 
 pub fn definition(value: u8) -> &'static Block {
     match BLOCK_DICTIONARY.as_ref() {

@@ -2,105 +2,90 @@ use bevy::prelude::*;
 use floralcraft::{
     config,
     config::{Config, load_config},
-    renderer, world_controller,
-    world_controller::WorldController,
+    player::Player,
+    renderer,
+    renderer::{DrawContext, ImageMap, IsoProj},
+    world_controller::{DirtyChunks, SizedWorld, WorldController},
 };
 use floralcraft_terrain::ChunkPosition;
-use riso::IsometricProjection;
-use thiserror::Error;
+use spriso::IsoProjection;
 
-#[derive(Resource)]
-pub struct IsoProjWrapper(IsometricProjection);
-
-#[derive(Debug, Error)]
-pub enum CliError {
-    #[error(transparent)]
-    ConfigCliError(#[from] config::CliError),
-    #[error(transparent)]
-    BlockCliError(#[from] block_dictionary::CliError),
-}
-
-fn main() -> Result<(), CliError> {
-    let config: Config = load_config("Config.toml")?;
-
+fn main() -> Result<(), config::CliError> {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: String::from("Floralcraft"),
-                ..default()
-            }),
-            ..default()
-        }))
-        .insert_resource(config)
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Floralcraft".to_string(),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
+        .insert_resource(load_config("Config.toml")?)
         .add_systems(Startup, setup)
-        .add_systems(Update, update_world_controller)
-        .add_systems(Update, draw_blocks)
+        .add_systems(
+            Update,
+            (
+                update_world_controller,
+                draw,
+                floralcraft::player::move_player,
+                floralcraft::camera::update_camera,
+            )
+                .chain(),
+        )
         .run();
 
     Ok(())
 }
 
-fn setup(mut commands: Commands, config: Res<Config>) {
-    commands.insert_resource(IsoProjWrapper(IsometricProjection::new::<14, 14>()));
-    commands.insert_resource(renderer::Assets::default());
-    commands.insert_resource(WorldController::new(&config.world.generation));
-    commands.spawn(Camera2d);
-
-    info!("Setup complete!");
-}
-
-fn update_world_controller(mut world_controller: ResMut<WorldController>, config: Res<Config>) {
-    let origin: ChunkPosition = ChunkPosition::new(0, 0);
-    let radius: u32 = config.world.render_distance;
-    world_controller.update(&config.world.generation, origin, radius);
-}
-
-fn draw_blocks(
+fn setup(
     mut commands: Commands,
-    mut assets: ResMut<renderer::Assets>,
-    mut world_controller: ResMut<WorldController>,
-    asset_server: Res<AssetServer>,
-    iso_proj: Res<IsoProjWrapper>,
     config: Res<Config>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
+    const TILE_WIDTH: u32 = 28;
+
+    commands.insert_resource(WorldController::new(&config.world.generation));
+    commands.insert_resource(IsoProj(IsoProjection::new::<14, 14>()));
+    commands.insert_resource(DirtyChunks::default());
+    commands.spawn(Camera2d);
+    commands.spawn((
+        Player,
+        Sprite::from_image(asset_server.load("player/idle.png")),
+    ));
+    commands.insert_resource(ImageMap {
+        texture: asset_server.load("blocks.png"),
+        layout: texture_atlases.add(TextureAtlasLayout::from_grid(
+            UVec2::splat(TILE_WIDTH),
+            5,
+            1,
+            None,
+            None,
+        )),
+    });
+}
+
+fn update_world_controller(
+    mut world_controller: ResMut<WorldController>,
+    config: Res<Config>,
+    mut dirty_chunks: ResMut<DirtyChunks>,
+) {
+    let params: &config::WorldGeneration = &config.world.generation;
     let origin: ChunkPosition = ChunkPosition::new(0, 0);
     let radius: u32 = config.world.render_distance;
-    let image_paths: Vec<String> = config
-        .assets
-        .blocks
-        .clone()
-        .into_iter()
-        .map(|(_name, path)| path)
-        .collect();
+    let positions = SizedWorld::positions_in_square(origin, radius);
+    world_controller.update(params, &mut dirty_chunks, positions);
+}
 
-    let chunk_positions: Vec<ChunkPosition> =
-        world_controller::SizedWorld::positions_in_square(origin, radius)
-            .filter(|&pos| world_controller.world.is_chunk_at_pos(pos))
-            .collect();
-
-    for chunk_pos in chunk_positions {
-        let origin_block_pos: glam::IVec3 =
-            world_controller::SizedWorld::chunk_to_block_pos(chunk_pos);
-
-        let _ = world_controller
-            .world
-            .decorate_chunk(chunk_pos, |chunk, pos| {
-                if unsafe { !chunk.block_exposed(pos) } {
-                    return;
-                }
-
-                let block: u8 = unsafe { chunk.block(pos) };
-                let screen_pos: glam::Vec3 = iso_proj.0.world_to_screen(origin_block_pos + pos);
-                let texture: Handle<Image> =
-                    assets.image(asset_server.clone(), &image_paths[block as usize]);
-                let transform: Transform = Transform::from_xyz(
-                    screen_pos.x as f32,
-                    (-screen_pos.y + screen_pos.z) as f32,
-                    0.0,
-                );
-
-                commands.spawn((Sprite::from_image(texture), transform));
-            })
-            .map_err(|e| eprintln!("Tried to access unloaded chunk! {:?}", e));
+fn draw(
+    mut draw_context: DrawContext,
+    world_controller: Res<WorldController>,
+    mut dirty_chunks: ResMut<DirtyChunks>,
+) {
+    for chunk_pos in dirty_chunks.0.drain() {
+        renderer::draw_chunk(&mut draw_context, &world_controller, chunk_pos);
     }
 }

@@ -1,13 +1,14 @@
 use serde::Deserialize;
-use thiserror::Error;
-use std::io;
 use std::fs;
-use indexmap::IndexMap;
+use std::io;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CliError {
-    #[error("I/O error: {0}")] IoError(#[from] io::Error),
-    #[error("TOML deserialization error: {0}")] TomlDeError(#[from] toml::de::Error),
+    #[error("I/O error: {0}")]
+    IoError(#[from] io::Error),
+    #[error("TOML deserialization error: {0}")]
+    TomlDeError(#[from] toml::de::Error),
 }
 
 #[must_use]
@@ -19,15 +20,8 @@ pub fn load_config(path: &str) -> Result<Config, CliError> {
 
 #[derive(Debug, Deserialize, bevy::prelude::Resource)]
 pub struct Config {
-    pub assets: AssetsConfig,
     pub player: PlayerConfig,
     pub world: WorldConfig,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AssetsConfig {
-    pub player: IndexMap<String, String>,
-    pub blocks: IndexMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,10 +29,10 @@ pub struct PlayerConfig {
     pub game_mode: String,
     pub gravity_per_second: f32,
     pub friction_per_second: f32,
-    pub acceleration_per_second: f32,
+    pub player_speed: f32,
     pub jump_velocity: f32,
-    pub stop_threshold: f32,
-    pub camera_zoom: f32,
+    pub camera_zoom_speed: f32,
+    pub camera_decay_rate: f32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,7 +60,8 @@ pub struct WorldGeneration {
     pub seed: u32,
     pub dirt_height: i32,
     pub grass_threshold: f64,
-    pub minimum_air_height: u32,
+    pub lowest_surface_height: u32,
+    pub highest_surface_height: u32,
     pub cave_threshold: f64,
 
     pub base_noise: NoiseParams,
