@@ -1,8 +1,8 @@
 use crate::world_controller::WorldController;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use floralcraft_terrain::ChunkPosition;
 use spriso::IsoProjection;
+use terrain_data::prelude::ChunkPosition;
 
 #[derive(Resource)]
 pub struct IsoProj(pub IsoProjection);
@@ -18,7 +18,7 @@ pub fn draw_chunk(
     world_controller: &WorldController,
     chunk_pos: ChunkPosition,
 ) {
-    match world_controller.world.chunk_render_data(chunk_pos) {
+    match world_controller.chunk_render_data(chunk_pos) {
         Ok(render_data) => render_data.for_each(|(block, pos)| draw_context.draw_block(block, pos)),
         Err(e) => eprintln!("Failed to draw chunk at pos {:?}: {}", chunk_pos, e),
     }

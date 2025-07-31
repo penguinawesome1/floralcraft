@@ -1,7 +1,7 @@
 use crate::config::{NoiseParams, WorldGeneration};
-use crate::world_controller::{CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
-use floralcraft_terrain::BlockPosition;
+use crate::world_controller::world::{CHUNK_HEIGHT, CHUNK_WIDTH};
 use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, SuperSimplex};
+use terrain_data::prelude::BlockPosition;
 
 // this must match the order of the toml block file!
 const AIR: u8 = 0;
@@ -14,17 +14,19 @@ pub trait BlockGenerator: Send + Sync + 'static {
     /// Returns the noise calculated block from the passed global position.
     /// Not intended to be called outside of generate chunk blocks.
     fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8;
+    fn clone_box(&self) -> Box<dyn BlockGenerator>;
 }
 
+#[derive(Clone)]
 pub struct SkyblockGenerator;
 
 impl BlockGenerator for SkyblockGenerator {
     fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> u8 {
         if pos.x < 0
-            || pos.x >= CHUNK_WIDTH as i32
+            || pos.x >= (CHUNK_WIDTH as i32)
             || pos.y < 0
-            || pos.y >= CHUNK_HEIGHT as i32
-            || (pos.x < CHUNK_WIDTH as i32 / 2 && pos.y >= CHUNK_HEIGHT as i32 / 2)
+            || pos.y >= (CHUNK_HEIGHT as i32)
+            || (pos.x < (CHUNK_WIDTH as i32) / 2 && pos.y >= (CHUNK_HEIGHT as i32) / 2)
         {
             return AIR;
         }
@@ -36,8 +38,13 @@ impl BlockGenerator for SkyblockGenerator {
             _ => AIR,
         }
     }
+
+    fn clone_box(&self) -> Box<dyn BlockGenerator> {
+        Box::new(self.clone())
+    }
 }
 
+#[derive(Clone)]
 pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
@@ -48,6 +55,10 @@ impl BlockGenerator for FlatGenerator {
             4 => GRASS,
             _ => AIR,
         }
+    }
+
+    fn clone_box(&self) -> Box<dyn BlockGenerator> {
+        Box::new(self.clone())
     }
 }
 
@@ -88,11 +99,15 @@ impl NormalGenerator {
         let point: [f64; 2] = [position.x as f64, position.y as f64];
         self.base_noise.get(point) + self.mountain_ridge_noise.get(point) * 0.2
     }
+
+    fn clone_box(&self) -> Box<dyn BlockGenerator> {
+        Box::new(self.clone())
+    }
 }
 
 impl BlockGenerator for NormalGenerator {
     fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8 {
-        if pos.z > params.highest_surface_height as i32 {
+        if pos.z > (params.highest_surface_height as i32) {
             return AIR; // early return for efficiency
         }
 
@@ -107,8 +122,8 @@ impl BlockGenerator for NormalGenerator {
 
         let height_val: f64 = self.get_height_val(pos);
         let height_val_normalized: f64 = (height_val + 1.0) / 2.0;
-        let height: i32 = (params.lowest_surface_height as f64
-            + (params.highest_surface_height - params.lowest_surface_height) as f64
+        let height: i32 = ((params.lowest_surface_height as f64)
+            + ((params.highest_surface_height - params.lowest_surface_height) as f64)
                 * height_val_normalized) as i32;
         let dirt_height: i32 = height - params.dirt_height;
 
@@ -121,6 +136,10 @@ impl BlockGenerator for NormalGenerator {
         } else {
             STONE
         }
+    }
+
+    fn clone_box(&self) -> Box<dyn BlockGenerator> {
+        Box::new(self.clone())
     }
 }
 
