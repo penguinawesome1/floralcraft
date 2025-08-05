@@ -163,6 +163,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.98"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2063,6 +2069,7 @@ name = "floralcraft"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "anyhow",
  "bevy",
  "bincode",
  "glam 0.30.5",
@@ -2707,9 +2714,9 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libredox"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "360e552c93fa0e8152ab463bc4c4837fce76a225df11dfaeea66c313de5e61f7"
+checksum = "391290121bad3d37fbddad76d8f5d1c1c314cfc646d143d7e07a3086ddff0ce3"
 dependencies = [
  "bitflags 2.9.1",
  "libc",
@@ -2763,7 +2770,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 [[package]]
 name = "mac_dictionary"
 version = "0.1.0"
-source = "git+https://github.com/penguinawesome1/mac_dictionary.git#cc4cbbda5d7728490aaef6dffb857cd684fedd58"
+source = "git+https://github.com/penguinawesome1/mac_dictionary.git#c4212a02bc8947823c4f92437b85e557fbacabb6"
 dependencies = [
  "indexmap",
  "serde",
@@ -4113,7 +4120,7 @@ dependencies = [
 [[package]]
 name = "terrain_data"
 version = "0.1.0"
-source = "git+https://github.com/penguinawesome1/terrain_data.git#8992b13d8d5fe94ae63ce07c552ef32f0d89f1d5"
+source = "git+https://github.com/penguinawesome1/terrain_data.git#f52d1d03b7fb02b198b15b53d5db8bdd7bb9d8be"
 dependencies = [
  "ahash",
  "bincode",

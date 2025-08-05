@@ -3,6 +3,13 @@ use std::fs;
 use std::io;
 use thiserror::Error;
 
+pub const NUM_BLOCKS: u32 = 6;
+
+pub const TILE_WIDTH: u32 = 28;
+pub const TILE_HEIGHT: u32 = 28;
+pub const HALF_TILE_WIDTH: u32 = TILE_WIDTH / 2;
+pub const HALF_TILE_HEIGHT: u32 = TILE_HEIGHT / 2;
+
 #[derive(Debug, Error)]
 pub enum CliError {
     #[error("I/O error: {0}")]

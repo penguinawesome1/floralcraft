@@ -1,19 +1,19 @@
 use crate::config::{NoiseParams, WorldGeneration};
-use crate::world_controller::world::{CHUNK_HEIGHT, CHUNK_WIDTH};
+use crate::world::{CHUNK_HEIGHT, CHUNK_WIDTH, block_dictionary::SnugType};
 use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, SuperSimplex};
 use terrain_data::prelude::BlockPosition;
 
 // this must match the order of the toml block file!
-const AIR: u8 = 0;
-const GRASS: u8 = 1;
-const DIRT: u8 = 2;
-const STONE: u8 = 3;
-const BEDROCK: u8 = 4;
+const AIR: SnugType = 0;
+const GRASS: SnugType = 1;
+const DIRT: SnugType = 2;
+const STONE: SnugType = 3;
+const BEDROCK: SnugType = 4;
 
 pub trait BlockGenerator: Send + Sync + 'static {
     /// Returns the noise calculated block from the passed global position.
     /// Not intended to be called outside of generate chunk blocks.
-    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8;
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> SnugType;
     fn clone_box(&self) -> Box<dyn BlockGenerator>;
 }
 
@@ -21,7 +21,7 @@ pub trait BlockGenerator: Send + Sync + 'static {
 pub struct SkyblockGenerator;
 
 impl BlockGenerator for SkyblockGenerator {
-    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> u8 {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> SnugType {
         if pos.x < 0
             || pos.x >= (CHUNK_WIDTH as i32)
             || pos.y < 0
@@ -48,7 +48,7 @@ impl BlockGenerator for SkyblockGenerator {
 pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
-    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> u8 {
+    fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> SnugType {
         match pos.z {
             0 => BEDROCK,
             1..=3 => DIRT,
@@ -99,14 +99,10 @@ impl NormalGenerator {
         let point: [f64; 2] = [position.x as f64, position.y as f64];
         self.base_noise.get(point) + self.mountain_ridge_noise.get(point) * 0.2
     }
-
-    fn clone_box(&self) -> Box<dyn BlockGenerator> {
-        Box::new(self.clone())
-    }
 }
 
 impl BlockGenerator for NormalGenerator {
-    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> u8 {
+    fn choose_block(&self, pos: BlockPosition, params: &WorldGeneration) -> SnugType {
         if pos.z > (params.highest_surface_height as i32) {
             return AIR; // early return for efficiency
         }
