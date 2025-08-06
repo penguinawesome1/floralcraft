@@ -1,15 +1,19 @@
 use crate::config::{HALF_TILE_HEIGHT, HALF_TILE_WIDTH};
 use crate::world::{DirtyChunks, ResWorld, World, block_dictionary::SnugType};
-use bevy::tasks::futures_lite::future;
+use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
-    tasks::{AsyncComputeTaskPool, Task},
 };
+use bevy_async_task::AsyncReceiver;
+use bevy_async_task::AsyncTask;
 use spriso::IsoProjection;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use terrain_data::prelude::{BlockPosition, ChunkAccessError, ChunkPosition};
+
+const MAX_TASKS_PER_FRAME: usize = 4;
 
 #[derive(Resource)]
 pub struct ResIsoProjection(pub Arc<IsoProjection>);
@@ -20,19 +24,20 @@ pub struct ImageMap {
     pub layout: Handle<TextureAtlasLayout>,
 }
 
-#[derive(Component)]
-pub struct ChunkMeshTask(Task<Result<(Mesh, Transform), ChunkAccessError>>);
+#[derive(Resource)]
+pub struct ChunkMaterial(pub Handle<ColorMaterial>);
+
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct DrawTaskPool(pub VecDeque<AsyncReceiver<Result<(Mesh, Transform), ChunkAccessError>>>);
 
 pub fn make_draw_tasks(
-    mut commands: Commands,
+    mut draw_task_pool: ResMut<'_, DrawTaskPool>,
     mut dirty_chunks: ResMut<DirtyChunks>,
     world: Res<ResWorld>,
     image_map: Res<ImageMap>,
     texture_atlases: Res<Assets<TextureAtlasLayout>>,
     proj: Res<ResIsoProjection>,
 ) {
-    let compute_pool = AsyncComputeTaskPool::get();
-
     let layout: &TextureAtlasLayout = texture_atlases.get(&image_map.layout).unwrap();
 
     for chunk_pos in dirty_chunks.0.drain() {
@@ -40,34 +45,37 @@ pub fn make_draw_tasks(
         let proj_clone: Arc<IsoProjection> = Arc::clone(&proj.0);
         let layout_clone: TextureAtlasLayout = layout.clone();
 
-        let task = compute_pool
-            .spawn(async move { draw_chunk(&world_clone, &proj_clone, layout_clone, chunk_pos) });
+        let (fut, receiver) =
+            AsyncTask::new(draw_chunk(world_clone, proj_clone, layout_clone, chunk_pos)).split();
 
-        commands.spawn(ChunkMeshTask(task));
+        draw_task_pool.push_back(receiver);
+        AsyncComputeTaskPool::get().spawn(fut).detach();
     }
 }
 
 pub fn handle_draw_tasks(
+    mut draw_task_pool: ResMut<'_, DrawTaskPool>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut ChunkMeshTask)>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    image_map: Res<ImageMap>,
+    chunk_material: Res<ChunkMaterial>,
 ) {
-    for (entity, mut task) in &mut query {
-        let Some(result) = future::block_on(future::poll_once(&mut task.0)) else {
+    for _ in 0..MAX_TASKS_PER_FRAME {
+        let Some(mut receiver) = draw_task_pool.0.pop_front() else {
+            return;
+        };
+
+        let Some(v) = receiver.try_recv() else {
+            draw_task_pool.0.push_back(receiver);
             continue;
         };
 
-        match result {
+        match v {
             Ok((mesh, transform)) => {
                 let mesh_handle: Handle<Mesh> = meshes.add(mesh);
-                let material_handle: Handle<ColorMaterial> =
-                    materials.add(ColorMaterial::from(image_map.image.clone()));
 
                 commands.spawn((
                     Mesh2d(mesh_handle),
-                    MeshMaterial2d(material_handle),
+                    MeshMaterial2d(chunk_material.0.clone()),
                     transform,
                 ));
             }
@@ -75,14 +83,12 @@ pub fn handle_draw_tasks(
                 eprintln!("Error generating chunk mesh: {}", e);
             }
         }
-
-        commands.entity(entity).despawn();
     }
 }
 
-fn draw_chunk(
-    world: &World,
-    proj: &IsoProjection,
+async fn draw_chunk(
+    world: Arc<World>,
+    proj: Arc<IsoProjection>,
     layout: TextureAtlasLayout,
     chunk_pos: ChunkPosition,
 ) -> Result<(Mesh, Transform), ChunkAccessError> {

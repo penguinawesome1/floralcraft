@@ -1,5 +1,8 @@
 use crate::config::Config;
+use crate::world::World;
 use bevy::prelude::*;
+use spriso::IsoProjection;
+use terrain_data::prelude::{BlockPosition, ChunkPosition};
 
 #[derive(Component)]
 pub struct Player;
@@ -28,4 +31,10 @@ pub fn move_player(
     let move_delta: Vec2 =
         direction.normalize_or_zero() * config.player.player_speed * time.delta_secs();
     player.translation += move_delta.extend(0.0);
+}
+
+pub fn player_chunk_pos(player_transform: &Transform, proj: &IsoProjection) -> ChunkPosition {
+    let Vec3 { x, y, z: _ } = player_transform.translation;
+    let world_pos: BlockPosition = proj.screen_to_world(glam::vec3(x, -y, 0.0));
+    World::block_to_chunk_pos(world_pos)
 }
