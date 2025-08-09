@@ -1,11 +1,13 @@
 use crate::config;
 use crate::config::Config;
 use crate::config::WorldGeneration;
+use crate::config::WorldMode;
+use crate::renderer::ChunksToRender;
 use crate::world::Chunk;
 use crate::world::{
-    DirtyChunks, ResWorld, World,
+    ResWorld, World,
     block_dictionary::{SnugType, definition},
-    block_generator::BlockGenerator,
+    block_generator::{BlockGenerator, FlatGenerator, NormalGenerator, SkyblockGenerator},
 };
 use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
@@ -20,36 +22,50 @@ const MAX_TASKS_PER_FRAME: usize = 5;
 #[derive(Resource)]
 pub struct ResGenerator(pub Box<dyn BlockGenerator>);
 
-#[derive(Resource, Default)]
-pub struct PendingChunks(pub Vec<ChunkPosition>);
-
 #[derive(Resource, Deref, DerefMut, Default)]
 pub struct ChunkTaskPool(pub VecDeque<AsyncReceiver<(ChunkPosition, Chunk)>>);
 
 #[derive(Resource, Default)]
-pub struct ChunksTasksInTransit(pub HashSet<ChunkPosition>);
+pub struct ChunksStillGenerating(pub HashSet<ChunkPosition>);
 
-pub fn make_chunk_tasks(
+#[derive(Resource, Default)]
+pub struct ChunksToGenerate(pub Vec<ChunkPosition>);
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct GenerationSet;
+
+pub struct GenerationPlugin;
+
+impl Plugin for GenerationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_generator_resources.in_set(GenerationSet))
+            .add_systems(Update, (make_chunk_tasks, handle_chunk_tasks).chain());
+    }
+}
+
+fn setup_generator_resources(mut commands: Commands, config: Res<Config>) {
+    let generator: Box<dyn BlockGenerator> = match &config.world.generation.world_mode {
+        WorldMode::Normal => Box::new(NormalGenerator::new(&config.world.generation)),
+        WorldMode::Flat => Box::new(FlatGenerator),
+        WorldMode::Skyblock => Box::new(SkyblockGenerator),
+    };
+
+    commands.insert_resource(ResGenerator(generator));
+    commands.insert_resource(ChunkTaskPool::default());
+    commands.insert_resource(ChunksStillGenerating::default());
+    commands.insert_resource(ChunksToGenerate::default());
+}
+
+fn make_chunk_tasks(
     mut chunk_task_pool: ResMut<'_, ChunkTaskPool>,
-    mut pending_chunks: ResMut<PendingChunks>,
-    mut transit_tasks: ResMut<ChunksTasksInTransit>,
-    world: Res<ResWorld>,
+    mut chunks_to_generate: ResMut<ChunksToGenerate>,
+    mut chunks_still_generating: ResMut<ChunksStillGenerating>,
     generator: Res<ResGenerator>,
     config: Res<Config>,
 ) {
     let params: &config::WorldGeneration = &config.world.generation;
 
-    for _ in 0..MAX_TASKS_PER_FRAME {
-        let chunk_pos: ChunkPosition = loop {
-            let Some(chunk_pos) = pending_chunks.0.pop() else {
-                return;
-            };
-
-            if !world.0.is_chunk_at_pos(chunk_pos) && !transit_tasks.0.contains(&chunk_pos) {
-                break chunk_pos;
-            }
-        };
-
+    for chunk_pos in chunks_to_generate.0.drain(..) {
         let generator_clone: Box<dyn BlockGenerator> = generator.0.clone_box();
         let params_clone: WorldGeneration = params.clone();
 
@@ -58,19 +74,19 @@ pub fn make_chunk_tasks(
 
         chunk_task_pool.push_back(receiver);
         AsyncComputeTaskPool::get().spawn(fut).detach();
-        transit_tasks.0.insert(chunk_pos);
+        chunks_still_generating.0.insert(chunk_pos);
     }
 }
 
-pub fn handle_chunk_tasks(
+fn handle_chunk_tasks(
     mut chunk_task_pool: ResMut<'_, ChunkTaskPool>,
-    mut dirty_chunks: ResMut<DirtyChunks>,
-    mut transit_tasks: ResMut<ChunksTasksInTransit>,
+    mut chunks_to_render: ResMut<ChunksToRender>,
+    mut chunks_still_generating: ResMut<ChunksStillGenerating>,
     world: Res<ResWorld>,
 ) {
     for _ in 0..MAX_TASKS_PER_FRAME {
         let Some(mut receiver) = chunk_task_pool.0.pop_front() else {
-            continue;
+            return;
         };
 
         let Some((chunk_pos, chunk)) = receiver.try_recv() else {
@@ -80,8 +96,8 @@ pub fn handle_chunk_tasks(
 
         match world.0.add_chunk(chunk_pos, Some(chunk)) {
             Ok(()) => {
-                dirty_chunks.0.insert(chunk_pos);
-                transit_tasks.0.remove(&chunk_pos);
+                chunks_to_render.0.push(chunk_pos);
+                chunks_still_generating.0.remove(&chunk_pos);
             }
             Err(e) => eprintln!("Error setting chunk: {}", e),
         }
@@ -104,15 +120,11 @@ async fn make_chunk(
 
     // update which blocks are exposed
     for pos in World::chunk_coords(ChunkPosition::ZERO) {
-        let block: SnugType = chunk.block(pos).unwrap_or(0);
-        if !definition(block as usize).is_visible() {
-            chunk.set_is_exposed(pos, false).unwrap();
-            continue;
-        }
+        let block: SnugType = chunk.block(pos).unwrap();
 
-        let is_exposed: bool =
-            World::block_offsets(pos).any(|adj_pos| match chunk.block(adj_pos) {
-                Ok(adj_block) => !definition(adj_block as usize).is_visible(),
+        let is_exposed: bool = definition(block as usize).is_visible()
+            && World::block_offsets(pos).any(|adj_pos| match chunk.block(adj_pos) {
+                Ok(adj_block) => definition(adj_block as usize).is_transparent(),
                 _ => false,
             });
 

@@ -1,17 +1,16 @@
 pub mod block_dictionary;
 pub mod block_generator;
 pub mod chunk_generation;
+pub mod chunk_selection;
+pub mod hover_block;
+pub mod interaction;
 
 use bevy::prelude::Resource;
-use std::collections::HashSet;
 use std::sync::Arc;
-use terrain_data::prelude::{ChunkPosition, world};
+use terrain_data::prelude::world;
 
 #[derive(Resource)]
 pub struct ResWorld(pub Arc<World>);
-
-#[derive(Default, Resource)]
-pub struct DirtyChunks(pub HashSet<ChunkPosition>);
 
 world! {
     chunk_width: 16,

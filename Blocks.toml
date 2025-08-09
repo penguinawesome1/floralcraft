@@ -1,34 +1,55 @@
-[air] #0
+[0] # air
 is_hoverable = false
 is_visible = false
 is_breakable = false
 is_collidable = false
 is_replaceable = true
+is_transparent = true
 
-[grass] #1
+[1] # grass
 is_hoverable = true
 is_visible = true
 is_breakable = true
 is_collidable = true
 is_replaceable = false
+is_transparent = false
 
-[dirt] #2
+[2] # dirt
 is_hoverable = true
 is_visible = true
 is_breakable = true
 is_collidable = true
 is_replaceable = false
+is_transparent = false
 
-[stone] #3
+[3] # stone
 is_hoverable = true
 is_visible = true
 is_breakable = true
 is_collidable = true
 is_replaceable = false
+is_transparent = false
 
-[bedrock] #4
+[4] # rose
+is_hoverable = true
+is_visible = true
+is_breakable = true
+is_collidable = false
+is_replaceable = true
+is_transparent = true
+
+[5] # dandelions
+is_hoverable = true
+is_visible = true
+is_breakable = true
+is_collidable = false
+is_replaceable = true
+is_transparent = true
+
+[6] # bedrock
 is_hoverable = true
 is_visible = true
 is_breakable = false
 is_collidable = true
 is_replaceable = false
+is_transparent = false

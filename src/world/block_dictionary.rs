@@ -7,4 +7,5 @@ dictionary! {
     is_breakable = 1,
     is_collidable = 1,
     is_replaceable = 1,
+    is_transparent = 1,
 }

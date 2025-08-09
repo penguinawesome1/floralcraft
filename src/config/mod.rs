@@ -1,6 +1,9 @@
+use crate::world::block_dictionary::initialize_dictionary;
+use bevy::prelude::*;
 use serde::Deserialize;
 use std::fs;
 use std::io;
+use std::path::Path;
 use thiserror::Error;
 
 pub const NUM_BLOCKS: u32 = 6;
@@ -18,6 +21,30 @@ pub enum CliError {
     TomlDeError(#[from] toml::de::Error),
 }
 
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct ConfigSet;
+
+pub struct ConfigPlugin;
+
+impl Plugin for ConfigPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_config_resources.in_set(ConfigSet));
+    }
+}
+
+fn setup_config_resources(mut commands: Commands) {
+    let config: Config = load_config("Config.toml").unwrap_or_else(|e| {
+        eprintln!("Error loading config: {}", e);
+        panic!();
+    });
+
+    commands.insert_resource(config);
+
+    if let Err(e) = initialize_dictionary(Path::new("Blocks.toml")) {
+        eprintln!("{:?}", e);
+    }
+}
+
 #[must_use]
 pub fn load_config(path: &str) -> Result<Config, CliError> {
     let contents: String = fs::read_to_string(path)?;
@@ -25,7 +52,7 @@ pub fn load_config(path: &str) -> Result<Config, CliError> {
     Ok(config)
 }
 
-#[derive(Debug, Deserialize, bevy::prelude::Resource)]
+#[derive(Debug, Deserialize, Resource)]
 pub struct Config {
     pub player: PlayerConfig,
     pub world: WorldConfig,

@@ -1531,9 +1531,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck_derive"
-version = "1.10.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "441473f2b4b0459a68628c744bc61d23e730fb00128b841d30fa4bb3972257e4"
+checksum = "4f154e572231cb6ba2bd1176980827e3d5dc04cc183a75dea38109fbdd672d29"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4125,7 +4125,7 @@ dependencies = [
 [[package]]
 name = "spriso"
 version = "0.1.0"
-source = "git+https://github.com/penguinawesome1/spriso.git?tag=v0.1.0#5b6759c26030e22c3e0c8f602d4cb9fb1ce09a79"
+source = "git+https://github.com/penguinawesome1/spriso.git?tag=v0.1.0#f7735f216e56ab06cdde1cea34e0e23daf33b8be"
 dependencies = [
  "glam 0.30.5",
 ]
@@ -4244,7 +4244,7 @@ dependencies = [
 [[package]]
 name = "terrain_data"
 version = "0.1.0"
-source = "git+https://github.com/penguinawesome1/terrain_data.git#a204e126feb2e6900ca1bbca1d56582ffe5ca88f"
+source = "git+https://github.com/penguinawesome1/terrain_data.git#11aae2fc43023152f8ed0116c1f237d3b6cce33a"
 dependencies = [
  "ahash",
  "bincode",
