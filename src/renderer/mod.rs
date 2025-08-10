@@ -1,4 +1,4 @@
-use crate::config::{HALF_TILE_HEIGHT, HALF_TILE_WIDTH, NUM_BLOCKS, TILE_HEIGHT, TILE_WIDTH};
+use crate::config::{Config, HALF_TILE_HEIGHT, HALF_TILE_WIDTH, TILE_HEIGHT, TILE_WIDTH};
 use crate::world::{ResWorld, World, block_dictionary::SnugType};
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{
@@ -38,11 +38,14 @@ pub struct ChunkPositionComponent(pub ChunkPosition);
 #[derive(Resource, Default)]
 pub struct ChunksToRender(pub Vec<ChunkPosition>);
 
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct RendererSet;
+
 pub struct RendererPlugin;
 
 impl Plugin for RendererPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_renderer_resources)
+        app.add_systems(Startup, setup_renderer_resources.in_set(RendererSet))
             .add_systems(Update, (make_draw_tasks, handle_draw_tasks).chain());
     }
 }
@@ -52,12 +55,13 @@ fn setup_renderer_resources(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     asset_server: Res<AssetServer>,
+    config: Res<Config>,
 ) {
     let image_map: ImageMap = ImageMap {
         image: asset_server.load("blocks.png"),
         layout: texture_atlases.add(TextureAtlasLayout::from_grid(
             UVec2::new(TILE_WIDTH, TILE_HEIGHT),
-            NUM_BLOCKS,
+            config.world.num_blocks,
             1,
             None,
             None,

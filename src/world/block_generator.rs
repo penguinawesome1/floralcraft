@@ -10,7 +10,7 @@ const DIRT: SnugType = 2;
 const STONE: SnugType = 3;
 const _ROSE: SnugType = 4;
 const _DANDELION: SnugType = 5;
-const TEMP: SnugType = 2;
+const BEDROCK: SnugType = 6;
 
 pub trait BlockGenerator: Send + Sync + 'static {
     /// Returns the noise calculated block from the passed global position.
@@ -34,7 +34,7 @@ impl BlockGenerator for SkyblockGenerator {
         }
 
         match pos.z {
-            0 => TEMP,
+            0 => BEDROCK,
             1..=3 => DIRT,
             4 => GRASS,
             _ => AIR,
@@ -51,14 +51,12 @@ pub struct FlatGenerator;
 
 impl BlockGenerator for FlatGenerator {
     fn choose_block(&self, pos: BlockPosition, _params: &WorldGeneration) -> SnugType {
-        // match pos.z {
-        //     0 => TEMP,
-        //     1..=3 => DIRT,
-        //     4 => GRASS,
-        //     _ => AIR,
-        // }
-
-        if pos.x == 0 && pos.y == 0 { DIRT } else { AIR }
+        match pos.z {
+            0 => BEDROCK,
+            1..=3 => DIRT,
+            4 => GRASS,
+            _ => AIR,
+        }
     }
 
     fn clone_box(&self) -> Box<dyn BlockGenerator> {
@@ -112,7 +110,7 @@ impl BlockGenerator for NormalGenerator {
         }
 
         if pos.z == 0 {
-            return TEMP; // place bedrock at world floor
+            return BEDROCK; // place bedrock at world floor
         }
 
         let density_val: f64 = self.get_density_val(pos).abs();

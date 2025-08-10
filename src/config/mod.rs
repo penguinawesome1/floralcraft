@@ -6,8 +6,6 @@ use std::io;
 use std::path::Path;
 use thiserror::Error;
 
-pub const NUM_BLOCKS: u32 = 6;
-
 pub const TILE_WIDTH: u32 = 28;
 pub const TILE_HEIGHT: u32 = 28;
 pub const HALF_TILE_WIDTH: u32 = TILE_WIDTH / 2;
@@ -76,6 +74,7 @@ pub struct WorldConfig {
     pub simulation_distance: u32,
     pub num_rotations_90_deg_clockwise: u8,
     pub target_hover_height: f32,
+    pub num_blocks: u32,
 }
 
 #[derive(Debug, Deserialize, Clone)]

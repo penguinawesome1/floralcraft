@@ -3,13 +3,13 @@ use floralcraft::{
     camera::update_camera,
     config::{ConfigPlugin, ConfigSet},
     player::PlayerPlugin,
-    renderer::RendererPlugin,
+    renderer::{RendererPlugin, RendererSet},
     world::{
         ResWorld, World,
         chunk_generation::{GenerationPlugin, GenerationSet},
         chunk_selection::choose_chunks_to_generate,
         hover_block::{HoverBlock, update_hover_block},
-        interaction::break_and_place,
+        interaction::InteractionPlugin,
     },
 };
 use std::sync::Arc;
@@ -28,20 +28,16 @@ fn main() {
                 }),
         )
         .configure_sets(Startup, ConfigSet.before(GenerationSet))
+        .configure_sets(Startup, ConfigSet.before(RendererSet))
         .add_plugins(ConfigPlugin)
-        .add_plugins(PlayerPlugin)
         .add_plugins(RendererPlugin)
+        .add_plugins(PlayerPlugin)
         .add_plugins(GenerationPlugin)
+        .add_plugins(InteractionPlugin)
         .add_systems(Startup, load_resources)
         .add_systems(
             Update,
-            (
-                choose_chunks_to_generate,
-                update_camera,
-                update_hover_block,
-                break_and_place,
-            )
-                .chain(),
+            (choose_chunks_to_generate, update_camera, update_hover_block).chain(),
         )
         .run();
 }
