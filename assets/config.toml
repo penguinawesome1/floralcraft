@@ -1,0 +1,5 @@
+[player]
+player_speed = 20.0
+
+[world]
+num_blocks = 7

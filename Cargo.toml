@@ -1,0 +1,23 @@
+[package]
+name = "floralcraft"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.18", features = ["dynamic_linking"] }
+bevy_camera = "0.18.1"
+blueprint = { path = "crates/blueprint" }
+spico = { path = "crates/spico" }
+serde = "1.0"
+toml = "1.0"
+
+[workspace]
+resolver = "2"
+members = [".", "crates/blueprint", "crates/spico"]
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
+debug = 2
