@@ -19,8 +19,8 @@ impl Projector {
     ///
     /// # Type Parameters
     ///
-    /// * `TILE_W`: The full width of your isometric tile in pixels.
-    /// * `TILE_H`: The full height of your isometric tile in pixels.
+    /// * `HALF_TW`: The half width of your isometric tile in pixels.
+    /// * `HALF_TH`: The half height of your isometric tile in pixels.
     ///
     /// # Examples
     ///
@@ -28,20 +28,16 @@ impl Projector {
     /// # use spico::Projector;
     /// let proj = Projector::new::<14, 14>();
     /// ```
-    pub fn new<const TILE_W: u32, const TILE_H: u32>() -> Self {
-        let tw = TILE_W as f32;
-        let th = TILE_H as f32;
-
-        let mat = Mat2::from_cols(
-            Vec2::new(tw * 0.5, th * 0.25),
-            Vec2::new(tw * -0.5, th * 0.25),
-        );
+    pub fn new<const HALF_TW: u32, const HALF_TH: u32>() -> Self {
+        let htw = HALF_TW as f32;
+        let hth = HALF_TH as f32;
+        let mat = Mat2::from_cols(Vec2::new(htw, hth * 0.5), Vec2::new(-htw, hth * 0.5));
 
         Self {
             proj: mat,
             proj_inv: mat.inverse(),
-            z_scale: th * 0.5,
-            z_scale_inv: 1.0 / (th * 0.5),
+            z_scale: hth,
+            z_scale_inv: 1.0 / hth,
         }
     }
 
@@ -58,7 +54,6 @@ impl Projector {
     /// let pos = IVec3::new(1, 1, 0);
     /// let screen = proj.grid_to_screen(pos.as_vec3());
     /// ```
-    #[inline]
     pub fn grid_to_screen(&self, pos: impl Into<Vec3>) -> Vec3 {
         let pos: Vec3 = pos.into();
         let screen_pos: Vec2 = self.proj * pos.truncate();
@@ -68,10 +63,56 @@ impl Projector {
     /// Converts screen positions back to discrete 3D grid coordinates.
     ///
     /// Rounds the result to the nearest integer grid cell.
-    #[inline]
     pub fn screen_to_grid(&self, pos: impl Into<Vec3>) -> IVec3 {
         let pos = pos.into();
         let grid_pos: Vec2 = self.proj_inv * pos.truncate();
         grid_pos.extend(pos.z * self.z_scale_inv).round().as_ivec3()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tuple_ergonomics() {
+        let proj = Projector::new::<16, 8>();
+        let screen = proj.grid_to_screen((1.0, 2.0, 3.0));
+        let grid = proj.screen_to_grid((64.0, 32.0, 16.0));
+
+        assert!(screen.length() > 0.0);
+        assert_eq!(grid.z, 2);
+    }
+
+    #[test]
+    fn test_round_trip() {
+        let proj = Projector::new::<16, 8>();
+        let original_grid = IVec3::new(5, -3, 2);
+        let screen = proj.grid_to_screen(original_grid.as_vec3());
+        let result_grid = proj.screen_to_grid(screen);
+
+        assert_eq!(
+            original_grid, result_grid,
+            "The round-trip conversion should be lossless."
+        );
+    }
+
+    #[test]
+    fn test_specific_mapping() {
+        let proj = Projector::new::<16, 8>();
+
+        let origin = proj.grid_to_screen(Vec3::ZERO);
+        assert_eq!(origin, Vec3::ZERO);
+
+        let x_one = proj.grid_to_screen(Vec3::X);
+        assert_eq!(x_one.x, 16.0);
+        assert_eq!(x_one.y, 4.0);
+    }
+
+    #[test]
+    fn test_z_height() {
+        let proj = Projector::new::<16, 8>();
+        let high_block = proj.grid_to_screen(Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(high_block.z, 8.0);
     }
 }

@@ -5,15 +5,22 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.18", features = ["dynamic_linking"] }
-bevy_camera = "0.18.1"
+bevy_camera = "0.18"
 blueprint = { path = "crates/blueprint" }
 spico = { path = "crates/spico" }
-serde = "1.0"
+aether = { path = "crates/aether" }
 toml = "1.0"
+serde = "1.0.228"
 
 [workspace]
 resolver = "2"
-members = [".", "crates/blueprint", "crates/spico"]
+members = [
+    ".",
+    "crates/aether",
+    "crates/blueprint",
+    "crates/chroma",
+    "crates/spico",
+]
 
 [profile.dev.package."*"]
 opt-level = 3

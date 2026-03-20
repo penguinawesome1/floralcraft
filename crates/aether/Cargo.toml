@@ -1,0 +1,21 @@
+[package]
+name = "aether"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bincode = { version = "2.0", features = ["derive", "serde"] }
+ahash = "0.8"
+chroma = { path = "../chroma", features = ["serde"] }
+dashmap = "6.1"
+glam = "0.30"
+itertools = "0.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_arrays = "0.2"
+thiserror = "2.0"
+tokio = { version = "1.50", features = [
+    "fs",
+    "io-util",
+    "rt-multi-thread",
+    "macros",
+] }
