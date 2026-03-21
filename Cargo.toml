@@ -8,7 +8,7 @@ bevy = { version = "0.18", features = ["dynamic_linking"] }
 bevy_camera = "0.18"
 blueprint = { path = "crates/blueprint" }
 spico = { path = "crates/spico" }
-aether = { path = "crates/aether" }
+aether = { path = "crates/aether", features = ["persistence"] }
 toml = "1.0"
 serde = "1.0.228"
 
@@ -19,6 +19,7 @@ members = [
     "crates/aether",
     "crates/blueprint",
     "crates/chroma",
+    "crates/lattice",
     "crates/spico",
 ]
 

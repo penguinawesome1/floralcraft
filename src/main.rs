@@ -1,4 +1,6 @@
+use aether::prelude::*;
 use bevy::prelude::*;
+use floralcraft::world::World;
 use floralcraft::{
     components::{GridPosition, ProjectionPlugin},
     config::{Config, ConfigPlugin, ConfigSet, TILE_H, TILE_W},
@@ -21,8 +23,14 @@ fn main() {
             },
             ProjectionPlugin,
         ))
-        .add_systems(Startup, setup.after(ConfigSet))
+        .add_systems(Startup, (setup, spawn_world).chain().after(ConfigSet))
         .run();
+}
+
+#[derive(Resource)]
+pub struct SpriteAssets {
+    pub layout: Handle<TextureAtlasLayout>,
+    pub texture: Handle<Image>,
 }
 
 fn setup(
@@ -33,8 +41,6 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
 
-    let texture = asset_server.load("blocks.png");
-
     let layout = TextureAtlasLayout::from_grid(
         UVec2::new(TILE_W, TILE_H),
         config.world.num_blocks,
@@ -42,29 +48,44 @@ fn setup(
         None,
         None,
     );
-    let layout_handle = texture_atlas_layouts.add(layout);
 
-    commands.spawn((
-        Sprite::from_atlas_image(
-            texture.clone(),
-            TextureAtlas {
-                layout: layout_handle.clone(),
-                index: 0, // The first tile in the sheet
-            },
-        ),
-        GridPosition(Vec3::new(0.0, 0.0, 0.0)),
-        Transform::IDENTITY,
-    ));
+    let layout = texture_atlas_layouts.add(layout);
+    let texture: Handle<Image> = asset_server.load("blocks.png");
 
-    commands.spawn((
-        Sprite::from_atlas_image(
-            texture,
-            TextureAtlas {
-                layout: layout_handle,
-                index: 1,
-            },
-        ),
-        GridPosition(Vec3::new(0.0, 0.0, 1.0)),
-        Transform::IDENTITY,
-    ));
+    commands.insert_resource(SpriteAssets { layout, texture });
+}
+
+fn spawn_world(mut commands: Commands) {
+    let world = World::default();
+    commands.insert_resource(world);
+}
+
+fn draw_chunk(
+    mut commands: Commands,
+    sprite_assets: Res<SpriteAssets>,
+    world: &World,
+    chunk_pos: ChunkPos,
+) {
+    let sprite_texture = sprite_assets.texture.clone();
+    let sprite_layout = sprite_assets.layout.clone();
+
+    for pos in World::chunk_coords(chunk_pos) {
+        let block_index = world.block(pos).unwrap() as usize;
+
+        if block_index == 0 {
+            continue;
+        }
+
+        commands.spawn((
+            Sprite::from_atlas_image(
+                sprite_texture.clone(),
+                TextureAtlas {
+                    layout: sprite_layout.clone(),
+                    index: block_index,
+                },
+            ),
+            GridPosition(pos.as_vec3()),
+            Transform::IDENTITY,
+        ));
+    }
 }

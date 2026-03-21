@@ -1,62 +1,84 @@
-use crate::core::{BlockPos, Packable, WorldField};
-use chroma::{BoundsError, Section};
-use serde::{Deserialize, Serialize};
+#![allow(unused)]
 
-#[derive(Serialize, Deserialize)]
-pub struct Subchunk<
-    const W: usize,
-    const H: usize,
-    const SUBCHUNK_D: usize,
-    const NUM_FIELDS: usize,
-> {
-    #[serde(with = "serde_arrays")]
-    pub sections: [Option<Section<W, H, SUBCHUNK_D>>; NUM_FIELDS],
+#[macro_export]
+macro_rules! subchunk {
+    (
+        $( #[$meta:meta] )*
+        [$w:expr, $h:expr, $d:expr],
+        $( $field:ident: $ty:ty ),* $(,)?
+    ) => {
+        $crate::derive_persistence! {
+            $( #[$meta] )*
+            #[derive(Default)]
+            pub struct Subchunk {
+                $( pub $field: Option<$crate::__private::chroma::Section<$ty, $w, $h, $d>>, )*
+            }
+        }
+
+        impl Subchunk {
+            $(
+                pub fn $field(&self, pos: $crate::core::BlockPos) -> Option<$ty> {
+                    match self.$field.as_ref() {
+                        Some(f) => f.get(pos),
+                        None => Some(<$ty>::default())
+                    }
+                }
+
+                $crate::__private::paste::paste! {
+                    pub fn [<set_ $field>](&mut self, pos: $crate::core::BlockPos, val: $ty)
+                            -> Result<$ty, $crate::__private::chroma::BoundsError> {
+                        let is_val_default = val == <$ty>::default();
+
+                        if is_val_default && self.$field.is_none() {
+                            return Ok(<$ty>::default());
+                        }
+
+                        let section = self.$field
+                            .get_or_insert_with(|| $crate::__private::chroma::Section::new(2));
+
+                        let old_val = section.set(pos, val)?;
+
+                        if is_val_default && section.is_empty() {
+                            self.$field = None;
+                        }
+
+                        Ok(old_val)
+                    }
+                }
+            )*
+
+            pub const fn is_empty(&self) -> bool {
+                true $( && self.$field.is_none() )*
+            }
+        }
+    };
 }
 
-impl<const W: usize, const H: usize, const SUBCHUNK_D: usize, const NUM_FIELDS: usize> Default
-    for Subchunk<W, H, SUBCHUNK_D, NUM_FIELDS>
-{
-    fn default() -> Self {
-        Self {
-            sections: std::array::from_fn(|_| None),
-        }
-    }
-}
+#[cfg(test)]
+mod tests {
+    use crate::core::BlockPos;
 
-impl<const W: usize, const H: usize, const SUBCHUNK_D: usize, const NUM_FIELDS: usize>
-    Subchunk<W, H, SUBCHUNK_D, NUM_FIELDS>
-{
-    pub fn get<F: WorldField>(&self, pos: BlockPos) -> Result<F::Storage, BoundsError> {
-        let val = self.sections[F::INDEX]
-            .as_ref()
-            .map_or(Ok(0), |s| s.item(pos))?;
-
-        Ok(F::Storage::from_u64(val))
+    subchunk! {
+        [16, 16, 16],
+        is_true: bool,
     }
 
-    pub fn set<F: WorldField>(
-        &mut self,
-        pos: BlockPos,
-        val: F::Storage,
-    ) -> Result<(), BoundsError> {
-        let raw_val = F::Storage::to_u64(val);
+    #[test]
+    fn it_works() {
+        let mut subchunk = Subchunk::default();
 
-        if raw_val == 0 && self.sections[F::INDEX].is_none() {
-            return Ok(());
-        }
+        assert!(subchunk.is_empty());
 
-        let section = self.sections[F::INDEX].get_or_insert_with(|| Section::new(F::BITS));
+        let pos1 = BlockPos::new(0, 0, 0);
+        let pos2 = BlockPos::new(0, 99999, 0);
 
-        section.set_item(pos, raw_val)?;
+        assert!(subchunk.is_true(pos1) == Some(false));
+        assert!(subchunk.is_true(pos2) == Some(false));
 
-        if raw_val == 0 && section.is_empty() {
-            self.sections[F::INDEX] = None;
-        }
+        assert!(subchunk.set_is_true(pos1, true) == Ok(false));
+        assert!(!subchunk.is_empty());
 
-        Ok(())
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.sections.iter().all(Option::is_none)
+        assert!(subchunk.set_is_true(pos1, false) == Ok(true));
+        assert!(subchunk.is_empty());
     }
 }

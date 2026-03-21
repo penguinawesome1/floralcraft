@@ -1,27 +1,31 @@
 use glam::IVec3;
+use std::fmt::Debug;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum BoundsError {
     #[error("Position {0:?} is out of bounds for the section.")]
     OutOfBounds(IVec3),
 }
 
+pub trait Item: Clone + Copy + PartialEq + Default + Send + Sync + Debug + 'static {}
+impl<T: Clone + Copy + PartialEq + Default + Send + Sync + Debug + 'static> Item for T {}
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone)]
-pub struct Section<const W: usize, const H: usize, const D: usize> {
+#[derive(Clone, Debug, PartialEq)]
+pub struct Section<T: Item, const W: usize, const H: usize, const D: usize> {
     data: Vec<u64>,
-    palette: Vec<u64>,
+    palette: Vec<T>,
     bits_per_item: u8,
 }
 
-impl<const W: usize, const H: usize, const D: usize> Default for Section<W, H, D> {
+impl<T: Item, const W: usize, const H: usize, const D: usize> Default for Section<T, W, H, D> {
     fn default() -> Self {
         Self::new(0)
     }
 }
 
-impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
+impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D> {
     const VOLUME: usize = W * H * D;
     const STRIDE_Y: usize = D;
     const STRIDE_X: usize = H * D;
@@ -40,7 +44,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// assert!(section.is_empty());
     ///
     /// let pos: IVec3 = IVec3::new(0, 0, 0);
-    /// section.set_item(pos, 2);
+    /// section.set(pos, 2);
     /// assert!(!section.is_empty());
     /// ```
     pub fn new(bits_per_item: u8) -> Self {
@@ -49,43 +53,44 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         let data_len: usize = total_bits_needed.div_ceil(u64::BITS as usize) + 1;
 
         let mut palette = Vec::with_capacity(palette_len);
-        palette.push(0);
+        palette.push(T::default());
 
         Self {
             data: vec![0; data_len],
-            palette: palette,
+            palette,
             bits_per_item,
         }
     }
 
     /// Returns if there is only one item type and it has a value of zero.
-    #[inline]
     pub fn is_empty(&self) -> bool {
         if self.bits_per_item == 0 {
-            return self.palette.get(0).map_or(true, |&val| val == 0);
+            return self
+                .palette
+                .first()
+                .map_or(true, |&val| val == T::default());
         }
 
         self.data.iter().all(|&word| word == 0)
     }
 
     /// Returns the dimensions (width, height, depth) of the section.
-    #[inline]
     pub const fn dimensions(&self) -> IVec3 {
         IVec3::new(W as i32, H as i32, D as i32)
     }
 
     /// Returns the total number of items in the section.
-    #[inline]
     pub const fn volume(&self) -> usize {
         Self::VOLUME
     }
 
     /// Gets an item given its three dimensional position.
-    #[inline]
-    pub fn item(&self, pos: impl Into<IVec3>) -> Result<u64, BoundsError> {
+    pub fn get(&self, pos: impl Into<IVec3>) -> Option<T> {
         let pos = pos.into();
-        Self::check_position_in_bounds(pos)?;
-        Ok(unsafe { self.item_unchecked(pos) })
+        if !Self::is_in_bounds(pos) {
+            return None;
+        }
+        Some(unsafe { self.get_unchecked(pos) })
     }
 
     /// Gets an item given its three dimensional position.
@@ -97,23 +102,25 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// # Safety
     ///
     /// The caller must ensure that pos is strictly within the bounds of W, H, and D
-    #[inline]
-    pub unsafe fn item_unchecked(&self, pos: IVec3) -> u64 {
+    pub unsafe fn get_unchecked(&self, pos: IVec3) -> T {
         let item_index: usize = Self::item_index(pos);
-        let palette_index: usize = self.palette_index(item_index);
+        let palette_index: usize = Self::palette_index(&self.data, self.bits_per_item, item_index);
         unsafe { *self.palette.get_unchecked(palette_index) }
     }
 
     /// Sets an item at the given three dimensional position.
     /// Returns an error if position is out of the section bounds.
-    #[must_use]
-    pub fn set_item(&mut self, pos: impl Into<IVec3>, item: u64) -> Result<(), BoundsError> {
+    pub fn set(&mut self, pos: impl Into<IVec3>, item: T) -> Result<T, BoundsError> {
         let pos = pos.into();
-        Self::check_position_in_bounds(pos)?;
-        unsafe {
-            self.set_item_unchecked(pos, item);
+        if !Self::is_in_bounds(pos) {
+            return Err(BoundsError::OutOfBounds(pos));
         }
-        Ok(())
+
+        unsafe {
+            let old_item = self.get_unchecked(pos);
+            self.set_unchecked(pos, item);
+            Ok(old_item)
+        }
     }
 
     /// Sets an item at the given three dimensional position.
@@ -125,7 +132,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// # Safety
     ///
     /// The caller must ensure that pos is strictly within the bounds of W, H, and D
-    pub unsafe fn set_item_unchecked(&mut self, pos: IVec3, item: u64) {
+    pub unsafe fn set_unchecked(&mut self, pos: IVec3, item: T) {
         let palette_index = self
             .palette
             .iter()
@@ -144,11 +151,11 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         let item_index: usize = Self::item_index(pos);
 
         unsafe {
-            self.set_item_ex(item_index, palette_index);
+            self.set_ex(item_index, palette_index);
         }
     }
 
-    unsafe fn set_item_ex(&mut self, item_index: usize, palette_index: usize) {
+    unsafe fn set_ex(&mut self, item_index: usize, palette_index: usize) {
         debug_assert!(
             palette_index < 1usize << self.bits_per_item,
             "repack needed first"
@@ -197,56 +204,49 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     }
 
     #[inline]
-    fn palette_index(&self, item_index: usize) -> usize {
-        let (word_index, bit_in_word) = Self::split_index(item_index, self.bits_per_item);
+    fn palette_index(data: &[u64], bits: u8, item_index: usize) -> usize {
+        let (word_index, bit_in_word) = Self::split_index(item_index, bits);
+        let mut item = data[word_index];
 
-        let mut item: u64 = self.data[word_index];
-
-        if bit_in_word + (self.bits_per_item as usize) > u64::BITS as usize {
+        if bit_in_word + (bits as usize) > u64::BITS as usize {
             item >>= bit_in_word;
-            let remaining_bits_n: usize =
-                bit_in_word + (self.bits_per_item as usize) - u64::BITS as usize;
-            let next_word: u64 = self.data[word_index + 1];
-            item |= next_word << ((self.bits_per_item as usize) - remaining_bits_n);
+            let remaining_bits_n: usize = bit_in_word + (bits as usize) - u64::BITS as usize;
+            let next_word: u64 = data[word_index + 1];
+            item |= next_word << ((bits as usize) - remaining_bits_n);
         } else {
             item >>= bit_in_word;
         }
 
-        let mask: u64 = (1 << self.bits_per_item) - 1;
+        let mask = (1u64 << bits) - 1;
         (item & mask) as usize
     }
 
-    // adjusts the data to account for a new amount of bits per item
+    /// Adjusts the data to account for a new amount of bits per item.
     fn repack(&mut self, new_bits_per_item: u8) {
         debug_assert!(
             self.bits_per_item < new_bits_per_item,
-            "repack must increase bits"
+            "Repack must increase bits"
         );
 
-        let all_palette_indices: Vec<usize> = (0..Self::VOLUME)
-            .map(|item_index| self.palette_index(item_index))
-            .collect();
+        let old_data = std::mem::take(&mut self.data);
+        let old_bits = self.bits_per_item;
 
         self.bits_per_item = new_bits_per_item;
-        let new_total_bits_needed: usize = (self.bits_per_item as usize) * Self::VOLUME;
-        let new_data_len: usize = new_total_bits_needed.div_ceil(u64::BITS as usize) + 1;
+        let new_total_bits: usize = (self.bits_per_item as usize) * Self::VOLUME;
+        let new_data_len = new_total_bits.div_ceil(u64::BITS as usize) + 1;
         self.data = vec![0; new_data_len];
 
         for item_index in 0..Self::VOLUME {
+            let palette_index = Self::palette_index(&old_data, old_bits, item_index);
             unsafe {
-                let palette_index: usize = *all_palette_indices.get_unchecked(item_index);
-                self.set_item_ex(item_index, palette_index);
+                self.set_ex(item_index, palette_index);
             }
         }
     }
 
-    #[must_use]
-    const fn check_position_in_bounds(pos: IVec3) -> Result<(), BoundsError> {
-        if (pos.x as usize) >= W || (pos.y as usize) >= H || (pos.z as usize) >= D {
-            return Err(BoundsError::OutOfBounds(pos));
-        }
-
-        Ok(())
+    #[inline]
+    const fn is_in_bounds(pos: IVec3) -> bool {
+        (pos.x as u32) < W as u32 && (pos.y as u32) < H as u32 && (pos.z as u32) < D as u32
     }
 }
 
@@ -256,65 +256,65 @@ mod tests {
 
     #[test]
     fn test_new_is_empty() {
-        let section: Section<16, 16, 16> = Section::new(2);
+        let section: Section<bool, 16, 16, 16> = Section::new(2);
         assert!(section.is_empty());
     }
 
     #[test]
     fn test_set_and_get_conversion() {
-        let mut section: Section<16, 16, 16> = Section::new(4);
+        let mut section: Section<u32, 16, 16, 16> = Section::new(4);
         let pos_1: IVec3 = IVec3::new(15, 1, 1);
         let pos_2: IVec3 = IVec3::new(15, 1, 2);
 
-        section.set_item((15, 1, 1), 3).unwrap();
-        section.set_item((15, 1, 1), 2).unwrap();
-        section.set_item((15, 1, 2), 1).unwrap();
+        section.set((15, 1, 1), 3).unwrap();
+        section.set((15, 1, 1), 2).unwrap();
+        section.set((15, 1, 2), 1).unwrap();
 
-        assert_eq!(section.item((15, 1, 1)).unwrap(), 2);
-        assert_eq!(section.item((15, 1, 2)).unwrap(), 1);
+        assert_eq!(section.get((15, 1, 1)).unwrap(), 2);
+        assert_eq!(section.get((15, 1, 2)).unwrap(), 1);
 
-        assert_eq!(section.item(pos_2).unwrap(), 1);
+        assert_eq!(section.get(pos_2).unwrap(), 1);
 
-        section.set_item(pos_1, 4).unwrap();
-        assert_eq!(section.item((15, 1, 1)).unwrap(), 4);
+        section.set(pos_1, 4).unwrap();
+        assert_eq!(section.get((15, 1, 1)).unwrap(), 4);
     }
 
     #[test]
-    fn test_set_and_get_item() {
-        let mut section: Section<16, 16, 16> = Section::new(4);
+    fn test_set_and_get() {
+        let mut section: Section<u32, 16, 16, 16> = Section::new(4);
         let pos_1: IVec3 = IVec3::new(15, 1, 1);
         let pos_2: IVec3 = IVec3::new(15, 1, 2);
 
         unsafe {
-            section.set_item_unchecked(pos_1, 3);
-            section.set_item_unchecked(pos_1, 2);
-            section.set_item_unchecked(pos_2, 1);
+            section.set_unchecked(pos_1, 3);
+            section.set_unchecked(pos_1, 2);
+            section.set_unchecked(pos_2, 1);
 
-            assert_eq!(section.item_unchecked(pos_1), 2);
-            assert_eq!(section.item_unchecked(pos_2), 1);
+            assert_eq!(section.get_unchecked(pos_1), 2);
+            assert_eq!(section.get_unchecked(pos_2), 1);
         }
     }
 
     #[test]
     fn test_repack() {
-        let mut section: Section<16, 16, 16> = Section::new(1);
+        let mut section: Section<u32, 16, 16, 16> = Section::new(1);
         let pos: IVec3 = IVec3::new(3, 5, 3);
 
         unsafe {
-            section.set_item_unchecked(pos, 30);
-            assert_eq!(section.item_unchecked(pos), 30);
+            section.set_unchecked(pos, 30);
+            assert_eq!(section.get_unchecked(pos), 30);
         }
     }
 
     #[test]
     fn test_max_fill() {
-        let mut section: Section<16, 16, 16> = Section::new(0);
+        let mut section: Section<u32, 16, 16, 16> = Section::new(0);
 
         for x in 0..16 {
             for y in 0..16 {
                 for z in 0..16 {
                     let pos: IVec3 = IVec3::new(x, y, z);
-                    section.set_item(pos, (x + y + z) as u64).unwrap();
+                    section.set(pos, (x + y + z) as u32).unwrap();
                 }
             }
         }

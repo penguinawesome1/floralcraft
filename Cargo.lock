@@ -86,13 +86,14 @@ name = "aether"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "async-trait",
  "bincode",
  "chroma",
  "dashmap",
  "glam",
  "itertools 0.14.0",
+ "paste",
  "serde",
- "serde_arrays",
  "thiserror 2.0.18",
  "tokio",
 ]
@@ -321,6 +322,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
 dependencies = [
  "portable-atomic",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1697,6 +1709,8 @@ dependencies = [
  "cexpr",
  "clang-sys",
  "itertools 0.13.0",
+ "log",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
@@ -1931,6 +1945,15 @@ dependencies = [
  "glob",
  "libc",
  "libloading",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.57"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75443c44cd6b379beb8c5b45d85d0773baf31cce901fe7bb252f4eff3008ef7d"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -2428,6 +2451,26 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "fastnoise2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1191ac78756e5828769fb75692e7a07a8eb6d3e5804bba381e19610b0d6fc8c0"
+dependencies = [
+ "fastnoise2-sys",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "fastnoise2-sys"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20fa0afa01858a91a057e67e03f505d4e08f2fba9a9995e7c2b7dfa70220d633"
+dependencies = [
+ "bindgen",
+ "cmake",
 ]
 
 [[package]]
@@ -3101,6 +3144,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff7f53bdf698e7aa7ec916411bbdc8078135da11b66db5182675b2227f6c0d07"
 dependencies = [
  "bitflags 2.11.0",
+]
+
+[[package]]
+name = "lattice"
+version = "0.1.0"
+dependencies = [
+ "aether",
+ "fastnoise2",
+ "glam",
 ]
 
 [[package]]
@@ -4350,15 +4402,6 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
-]
-
-[[package]]
-name = "serde_arrays"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
-dependencies = [
- "serde",
 ]
 
 [[package]]

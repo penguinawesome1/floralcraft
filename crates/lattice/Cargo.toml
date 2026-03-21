@@ -1,0 +1,9 @@
+[package]
+name = "lattice"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aether = { path = "../aether" }
+fastnoise2 = "0.4"
+glam = "0.30"

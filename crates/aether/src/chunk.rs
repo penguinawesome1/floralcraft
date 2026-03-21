@@ -1,74 +1,88 @@
-use crate::core::{BlockPos, WorldField};
-use crate::subchunk::Subchunk;
-use chroma::BoundsError;
-use serde::{Deserialize, Serialize};
+#![allow(unused)]
 
-#[derive(Serialize, Deserialize)]
-pub struct Chunk<
-    const W: usize,
-    const H: usize,
-    const SUBCHUNK_D: usize,
-    const NUM_FIELDS: usize,
-    const NUM_SUBCHUNKS: usize,
-> {
-    #[serde(with = "serde_arrays")]
-    pub subchunks: [Subchunk<W, H, SUBCHUNK_D, NUM_FIELDS>; NUM_SUBCHUNKS],
-}
-
-impl<
-    const W: usize,
-    const H: usize,
-    const SUBCHUNK_D: usize,
-    const NUM_FIELDS: usize,
-    const NUM_SUBCHUNKS: usize,
-> Default for Chunk<W, H, SUBCHUNK_D, NUM_FIELDS, NUM_SUBCHUNKS>
-{
-    fn default() -> Self {
-        Self {
-            subchunks: std::array::from_fn(|_| Subchunk::default()),
+#[macro_export]
+macro_rules! chunk {
+    (
+        $( #[$meta:meta] )*
+        [$w:expr, $h:expr, $d:expr; $n:expr],
+        $( $field:ident: $ty:ty ),* $(,)?
+    ) => {
+        $crate::subchunk! {
+            $( #[$meta] )*
+            [$w, $h, $d],
+            $( $field: $ty ),*
         }
-    }
+
+        $crate::derive_persistence! {
+            $( #[$meta] )*
+            #[derive(Default)]
+            pub struct Chunk {
+                pub subchunks: [Subchunk; $n],
+            }
+        }
+
+        impl Chunk {
+            $(
+                pub fn $field(&self, pos: $crate::core::BlockPos) -> Option<$ty> {
+                    let index = Self::subchunk_index(pos.z);
+                    let sub_pos = Self::local_to_sub(pos);
+                    self.subchunks.get(index).and_then(|s| s.$field(sub_pos))
+                }
+
+                $crate::__private::paste::paste! {
+                    pub fn [<set_ $field>](&mut self, pos: $crate::core::BlockPos, val: $ty)
+                            -> Result<$ty, $crate::__private::chroma::BoundsError> {
+                        let index = Self::subchunk_index(pos.z);
+                        let sub_pos = Self::local_to_sub(pos);
+
+                        self.subchunks
+                            .get_mut(index)
+                            .ok_or($crate::__private::chroma::BoundsError::OutOfBounds(pos))
+                            .and_then(|s| s.[<set_ $field>](sub_pos, val))
+                    }
+                }
+            )*
+
+            const fn subchunk_index(z: i32) -> usize {
+                z as usize / $h
+            }
+
+            const fn local_to_sub(pos: BlockPos) -> BlockPos {
+                BlockPos::new(pos.x, pos.y, pos.z % $d as i32)
+            }
+
+            pub fn is_empty(&self) -> bool {
+                self.subchunks.iter().all(|s| s.is_empty())
+            }
+        }
+    };
 }
 
-impl<
-    const W: usize,
-    const H: usize,
-    const SUBCHUNK_D: usize,
-    const NUM_FIELDS: usize,
-    const NUM_SUBCHUNKS: usize,
-> Chunk<W, H, SUBCHUNK_D, NUM_FIELDS, NUM_SUBCHUNKS>
-{
-    pub fn get<F>(&self, pos: BlockPos) -> Result<F::Storage, BoundsError>
-    where
-        F: WorldField,
-    {
-        let index = Self::subchunk_index(pos.z);
-        let sub_pos = Self::local_to_sub(pos);
+#[cfg(test)]
+mod tests {
+    use crate::core::BlockPos;
 
-        self.subchunks
-            .get(index)
-            .ok_or(BoundsError::OutOfBounds(pos))?
-            .get::<F>(sub_pos)
+    chunk! {
+        [16, 16, 16; 16],
+        is_true: bool,
     }
 
-    pub fn set<F>(&mut self, pos: BlockPos, val: F::Storage) -> Result<(), BoundsError>
-    where
-        F: WorldField,
-    {
-        let index = Self::subchunk_index(pos.z);
-        let sub_pos = Self::local_to_sub(pos);
+    #[test]
+    fn it_works() {
+        let mut chunk = Chunk::default();
 
-        self.subchunks
-            .get_mut(index)
-            .ok_or(BoundsError::OutOfBounds(pos))?
-            .set::<F>(sub_pos, val)
-    }
+        assert!(chunk.is_empty());
 
-    const fn subchunk_index(pos_z: i32) -> usize {
-        (pos_z as usize).div_euclid(SUBCHUNK_D)
-    }
+        let pos1 = BlockPos::new(0, 0, 0);
+        let pos2 = BlockPos::new(0, 99999, 0);
 
-    const fn local_to_sub(pos: BlockPos) -> BlockPos {
-        BlockPos::new(pos.x, pos.y, pos.z.rem_euclid(SUBCHUNK_D as i32))
+        assert!(chunk.is_true(pos1) == Some(false));
+        assert!(chunk.is_true(pos2) == Some(false));
+
+        assert!(chunk.set_is_true(pos1, true) == Ok(false));
+        assert!(!chunk.is_empty());
+
+        assert!(chunk.set_is_true(pos1, false) == Ok(true));
+        assert!(chunk.is_empty());
     }
 }
