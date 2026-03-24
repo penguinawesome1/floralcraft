@@ -22,7 +22,10 @@ pub struct GridPosition(pub Vec3);
 
 fn project_grid_to_screen(
     projector: Res<ProjectorRes>,
-    mut query: Query<(&GridPosition, &mut Transform), Changed<GridPosition>>,
+    mut query: Query<
+        (&GridPosition, &mut Transform),
+        Or<(Added<GridPosition>, Changed<GridPosition>)>,
+    >,
 ) {
     for (grid_pos, mut transform) in &mut query {
         let screen_pos = projector.0.grid_to_screen(grid_pos.0);

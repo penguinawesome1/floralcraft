@@ -62,18 +62,37 @@ fn make_entry(blueprint: &Blueprint) -> proc_macro2::TokenStream {
 
     let ty = &blueprint.ty;
 
-    let getters = field_info.iter().map(|(name, shift, mask)| {
-        quote! {
-            pub const fn #name(&self) -> #ty {
-                ((self.0 >> #shift) & (#mask as #ty))
+    let (constructor_args, getters, assignments) = {
+        let mut args = Vec::new();
+        let mut gets = Vec::new();
+        let mut sets = Vec::new();
+
+        for (name, shift, mask) in &field_info {
+            if *mask == 1 {
+                args.push(quote!(#name: bool));
+                gets.push(quote! {
+                    pub const fn #name(&self) -> bool {
+                        ((self.0 >> #shift) & 1) != 0
+                    }
+                });
+                sets.push(quote! {
+                    if #name { data |= (1 << #shift); }
+                });
+            } else {
+                args.push(quote!(#name: #ty));
+                gets.push(quote! {
+                    pub const fn #name(&self) -> #ty {
+                        ((self.0 >> #shift) & (#mask as #ty))
+                    }
+                });
+                sets.push(quote! {
+                    data |= (((#name as #ty) & (#mask as #ty)) << #shift);
+                });
             }
         }
-    });
 
-    let constructor_args = field_info.iter().map(|(name, _, _)| quote!(#name: #ty));
-    let assignments = field_info.iter().map(|(name, shift, mask)| {
-        quote! { data |= (((#name as #ty) & (#mask as #ty)) << #shift); }
-    });
+        (args, gets, sets)
+    };
 
     quote! {
         pub struct Entry(pub #ty);
@@ -117,12 +136,26 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
 
             let vals = blueprint.layouts.iter().map(|layout| {
                 let key = layout.name.to_string();
-                let val = table
+                let toml_val = table
                     .get(&key)
-                    .and_then(|v| v.as_integer())
-                    .expect(&format!("Missing integer field '{}' in TOML entry", key));
+                    .expect(&format!("Missing field '{}' in TOML entry", key));
 
-                quote! { (#val as #ty) }
+                if layout.num_bits == 1 {
+                    let is_true = match toml_val {
+                        toml::Value::Boolean(b) => *b,
+                        toml::Value::Integer(i) => *i != 0,
+                        _ => panic!(
+                            "Field '{}' must be a boolean (true/false) or integer (0/1)",
+                            key
+                        ),
+                    };
+                    quote! { #is_true }
+                } else {
+                    let val = toml_val
+                        .as_integer()
+                        .expect(&format!("Field '{}' must be an integer", key));
+                    quote! { (#val as #ty) }
+                }
             });
 
             quote! { Entry::new(#(#vals),*) }

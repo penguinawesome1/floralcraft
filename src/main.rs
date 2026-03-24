@@ -1,10 +1,25 @@
-use aether::prelude::*;
+mod camera;
+pub mod config;
+pub mod player;
+pub mod position;
+pub mod renderer;
+pub mod world;
+
 use bevy::prelude::*;
-use floralcraft::world::World;
-use floralcraft::{
-    components::{GridPosition, ProjectionPlugin},
-    config::{Config, ConfigPlugin, ConfigSet, TILE_H, TILE_W},
-};
+use config::Config;
+use config::ConfigPlugin;
+use player::PlayerPlugin;
+use position::ProjectionPlugin;
+use renderer::RendererPlugin;
+use renderer::SpriteAssets;
+use world::chunk_loader::ChunkLoaderPlugin;
+
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum GameState {
+    #[default]
+    Loading,
+    Playing,
+}
 
 fn main() {
     App::new()
@@ -21,71 +36,26 @@ fn main() {
             ConfigPlugin {
                 path: "assets/config.toml".to_string(),
             },
+            RendererPlugin,
+            PlayerPlugin,
             ProjectionPlugin,
+            ChunkLoaderPlugin,
         ))
-        .add_systems(Startup, (setup, spawn_world).chain().after(ConfigSet))
+        .init_state::<GameState>()
+        .add_systems(
+            Update,
+            transition_to_playing.run_if(in_state(GameState::Loading)),
+        )
         .run();
 }
 
-#[derive(Resource)]
-pub struct SpriteAssets {
-    pub layout: Handle<TextureAtlasLayout>,
-    pub texture: Handle<Image>,
-}
-
-fn setup(
-    mut commands: Commands,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    asset_server: Res<AssetServer>,
-    config: Res<Config>,
+fn transition_to_playing(
+    config: Option<Res<Config>>,
+    sprite_assets: Option<Res<SpriteAssets>>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
-    commands.spawn(Camera2d);
-
-    let layout = TextureAtlasLayout::from_grid(
-        UVec2::new(TILE_W, TILE_H),
-        config.world.num_blocks,
-        1,
-        None,
-        None,
-    );
-
-    let layout = texture_atlas_layouts.add(layout);
-    let texture: Handle<Image> = asset_server.load("blocks.png");
-
-    commands.insert_resource(SpriteAssets { layout, texture });
-}
-
-fn spawn_world(mut commands: Commands) {
-    let world = World::default();
-    commands.insert_resource(world);
-}
-
-fn draw_chunk(
-    mut commands: Commands,
-    sprite_assets: Res<SpriteAssets>,
-    world: &World,
-    chunk_pos: ChunkPos,
-) {
-    let sprite_texture = sprite_assets.texture.clone();
-    let sprite_layout = sprite_assets.layout.clone();
-
-    for pos in World::chunk_coords(chunk_pos) {
-        let block_index = world.block(pos).unwrap() as usize;
-
-        if block_index == 0 {
-            continue;
-        }
-
-        commands.spawn((
-            Sprite::from_atlas_image(
-                sprite_texture.clone(),
-                TextureAtlas {
-                    layout: sprite_layout.clone(),
-                    index: block_index,
-                },
-            ),
-            GridPosition(pos.as_vec3()),
-            Transform::IDENTITY,
-        ));
+    if config.is_some() && sprite_assets.is_some() {
+        next_state.set(GameState::Playing);
+        info!("System Ready: Transitioning to Playing");
     }
 }

@@ -23,7 +23,7 @@ world! {
 fn test_all() -> Result<(), AccessError> {
     let world: Arc<World> = Arc::new(World::default());
     let chunk_pos = ChunkPos::new(0, 0);
-    world.add_chunk(chunk_pos, None).unwrap();
+    world.insert(chunk_pos, None).unwrap();
 
     let pos_1 = BlockPos::new(15, 1, 200);
     let pos_2 = BlockPos::new(3, 0, 2);
@@ -60,7 +60,7 @@ fn test_get_and_set_chunk() -> Result<(), BoundsError> {
 async fn test_get_and_set_world() -> Result<(), AccessError> {
     let world: Arc<World> = Arc::new(World::default());
     let chunk_pos = ChunkPos::new(0, 0);
-    world.add_chunk(chunk_pos, None).unwrap();
+    world.insert(chunk_pos, None).unwrap();
 
     let pos_1 = BlockPos::new(15, 1, 200);
     let pos_2 = BlockPos::new(3, 0, 2);
@@ -82,20 +82,20 @@ async fn test_save_load_chunk() -> Result<(), ChunkStoreError> {
     let chunk_pos = ChunkPos::new(0, 0);
     let pos = BlockPos::new(1, 2, 3);
 
-    world.add_chunk(chunk_pos, None)?;
+    world.insert(chunk_pos, None)?;
     world.set_block(pos, 3)?;
 
     let storage = FileStorage::new(CHUNKS_DIR.into()).await?;
     storage
-        .save_chunk(chunk_pos, &*world.chunk(chunk_pos).unwrap())
+        .save_chunk(chunk_pos, &*world.get(chunk_pos).unwrap())
         .await?;
 
-    world.remove_chunk(chunk_pos).unwrap();
+    world.remove(chunk_pos).unwrap();
     assert!(world.block(pos).is_err());
 
     let chunk: Chunk = storage.load_chunk(chunk_pos).await?;
 
-    _ = world.add_chunk(chunk_pos, Some(chunk));
+    _ = world.insert(chunk_pos, Some(chunk));
 
     assert!(world.block(pos)? == 3);
 
@@ -117,9 +117,9 @@ async fn test_concurrent_set_block_and_add_chunk() -> Result<(), Box<dyn std::er
     let world_clone1: Arc<World> = Arc::clone(&world);
     let handle1 = tokio::spawn(async move {
         let chunk_pos = ChunkPos::ZERO;
-        world_clone1.add_chunk(chunk_pos, None).unwrap();
+        world_clone1.insert(chunk_pos, None).unwrap();
 
-        for pos in World::chunk_coords(chunk_pos) {
+        for pos in World::blocks_in(chunk_pos) {
             let value: u8 = (pos.x % 255) as u8;
             world_clone1.set_block(pos, value).unwrap();
         }
@@ -130,9 +130,9 @@ async fn test_concurrent_set_block_and_add_chunk() -> Result<(), Box<dyn std::er
     let world_clone2: Arc<World> = Arc::clone(&world);
     let handle2 = tokio::spawn(async move {
         let chunk_pos = ChunkPos::new(1, 0);
-        world_clone2.add_chunk(chunk_pos, None).unwrap();
+        world_clone2.insert(chunk_pos, None).unwrap();
 
-        for pos in World::chunk_coords(chunk_pos) {
+        for pos in World::blocks_in(chunk_pos) {
             let value: u8 = ((pos.x % 255) as u8) + 1;
             world_clone2.set_block(pos, value).unwrap();
         }

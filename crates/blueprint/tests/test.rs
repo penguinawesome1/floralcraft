@@ -12,8 +12,8 @@ bake_toml! {
 fn test_entry_getters() {
     assert_eq!(ENTRIES[0].a(), 7);
     assert_eq!(ENTRIES[0].b(), 2);
-    assert_eq!(ENTRIES[0].c(), 1);
+    assert_eq!(ENTRIES[0].c(), true);
     assert_eq!(ENTRIES[1].a(), 900);
     assert_eq!(ENTRIES[1].b(), 31);
-    assert_eq!(ENTRIES[1].c(), 0);
+    assert_eq!(ENTRIES[1].c(), false);
 }

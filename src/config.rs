@@ -14,11 +14,25 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct PlayerConfig {
     pub player_speed: f32,
+    pub camera_zoom_speed: f32,
+    pub camera_decay_rate: f32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct WorldConfig {
     pub num_blocks: u32,
+    pub render_distance: u32,
+    pub mode: WorldMode,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum WorldMode {
+    #[serde(rename = "flat")]
+    Flat,
+    #[serde(rename = "skyblock")]
+    Skyblock,
+    #[serde(other)]
+    Normal,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]

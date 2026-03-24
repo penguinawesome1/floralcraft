@@ -1,9 +1,9 @@
 [[entries]]
 a = 7
 b = 2
-c = 1
+c = true
 
 [[entries]]
 a = 900
 b = 31
-c = 0
+c = false

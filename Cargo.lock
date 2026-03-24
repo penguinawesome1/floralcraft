@@ -2518,6 +2518,7 @@ dependencies = [
  "bevy",
  "bevy_camera",
  "blueprint",
+ "lattice",
  "serde",
  "spico",
  "toml",
