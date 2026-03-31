@@ -23,17 +23,17 @@ world! {
 fn test_all() -> Result<(), AccessError> {
     let world: Arc<World> = Arc::new(World::default());
     let chunk_pos = ChunkPos::new(0, 0);
-    world.insert(chunk_pos, None).unwrap();
+    world.insert(&chunk_pos, None).unwrap();
 
     let pos_1 = BlockPos::new(15, 1, 200);
     let pos_2 = BlockPos::new(3, 0, 2);
 
-    world.set_is_exposed(pos_1, true)?;
-    world.set_is_exposed(pos_1, false)?;
-    world.set_is_exposed(pos_2, true)?;
+    world.set_is_exposed(&pos_1, true)?;
+    world.set_is_exposed(&pos_1, false)?;
+    world.set_is_exposed(&pos_2, true)?;
 
-    assert_eq!(world.is_exposed(pos_1)?, false);
-    assert_eq!(world.is_exposed(pos_2)?, true);
+    assert_eq!(world.is_exposed(&pos_1)?, false);
+    assert_eq!(world.is_exposed(&pos_2)?, true);
 
     Ok(())
 }
@@ -60,17 +60,17 @@ fn test_get_and_set_chunk() -> Result<(), BoundsError> {
 async fn test_get_and_set_world() -> Result<(), AccessError> {
     let world: Arc<World> = Arc::new(World::default());
     let chunk_pos = ChunkPos::new(0, 0);
-    world.insert(chunk_pos, None).unwrap();
+    world.insert(&chunk_pos, None).unwrap();
 
     let pos_1 = BlockPos::new(15, 1, 200);
     let pos_2 = BlockPos::new(3, 0, 2);
 
-    world.set_is_exposed(pos_1, true)?;
-    world.set_is_exposed(pos_1, false)?;
-    world.set_is_exposed(pos_2, true)?;
+    world.set_is_exposed(&pos_1, true)?;
+    world.set_is_exposed(&pos_1, false)?;
+    world.set_is_exposed(&pos_2, true)?;
 
-    assert_eq!(world.is_exposed(pos_1)?, false);
-    assert_eq!(world.is_exposed(pos_2)?, true);
+    assert_eq!(world.is_exposed(&pos_1)?, false);
+    assert_eq!(world.is_exposed(&pos_2)?, true);
 
     Ok(())
 }
@@ -82,22 +82,22 @@ async fn test_save_load_chunk() -> Result<(), ChunkStoreError> {
     let chunk_pos = ChunkPos::new(0, 0);
     let pos = BlockPos::new(1, 2, 3);
 
-    world.insert(chunk_pos, None)?;
-    world.set_block(pos, 3)?;
+    world.insert(&chunk_pos, None)?;
+    world.set_block(&pos, 3)?;
 
     let storage = FileStorage::new(CHUNKS_DIR.into()).await?;
     storage
-        .save_chunk(chunk_pos, &*world.get(chunk_pos).unwrap())
+        .save_chunk(chunk_pos, &*world.get(&chunk_pos).unwrap())
         .await?;
 
-    world.remove(chunk_pos).unwrap();
-    assert!(world.block(pos).is_err());
+    world.remove(&chunk_pos).unwrap();
+    assert!(world.block(&pos).is_err());
 
     let chunk: Chunk = storage.load_chunk(chunk_pos).await?;
 
-    _ = world.insert(chunk_pos, Some(chunk));
+    _ = world.insert(&chunk_pos, Some(chunk));
 
-    assert!(world.block(pos)? == 3);
+    assert!(world.block(&pos)? == 3);
 
     if Path::new(CHUNKS_DIR).exists() {
         fs::remove_dir_all(CHUNKS_DIR).await.unwrap();
@@ -117,11 +117,11 @@ async fn test_concurrent_set_block_and_add_chunk() -> Result<(), Box<dyn std::er
     let world_clone1: Arc<World> = Arc::clone(&world);
     let handle1 = tokio::spawn(async move {
         let chunk_pos = ChunkPos::ZERO;
-        world_clone1.insert(chunk_pos, None).unwrap();
+        world_clone1.insert(&chunk_pos, None).unwrap();
 
         for pos in World::blocks_in(chunk_pos) {
             let value: u8 = (pos.x % 255) as u8;
-            world_clone1.set_block(pos, value).unwrap();
+            world_clone1.set_block(&pos, value).unwrap();
         }
 
         Ok::<(), Box<dyn std::error::Error + Send>>(())
@@ -130,11 +130,11 @@ async fn test_concurrent_set_block_and_add_chunk() -> Result<(), Box<dyn std::er
     let world_clone2: Arc<World> = Arc::clone(&world);
     let handle2 = tokio::spawn(async move {
         let chunk_pos = ChunkPos::new(1, 0);
-        world_clone2.insert(chunk_pos, None).unwrap();
+        world_clone2.insert(&chunk_pos, None).unwrap();
 
         for pos in World::blocks_in(chunk_pos) {
             let value: u8 = ((pos.x % 255) as u8) + 1;
-            world_clone2.set_block(pos, value).unwrap();
+            world_clone2.set_block(&pos, value).unwrap();
         }
 
         Ok::<(), Box<dyn std::error::Error + Send>>(())
@@ -145,7 +145,7 @@ async fn test_concurrent_set_block_and_add_chunk() -> Result<(), Box<dyn std::er
 
     let pos = BlockPos::new(5, 5, 5);
 
-    assert_eq!(world.block(pos).unwrap(), 5);
+    assert_eq!(world.block(&pos).unwrap(), 5);
 
     if Path::new(CHUNKS_DIR).exists() {
         fs::remove_dir_all(CHUNKS_DIR).await.unwrap();

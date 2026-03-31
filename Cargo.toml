@@ -12,6 +12,7 @@ lattice = { path = "crates/lattice" }
 aether = { path = "crates/aether", features = ["persistence"] }
 toml = "1.0"
 serde = "1.0"
+bevy_async_task = "0.12"
 
 [workspace]
 resolver = "2"

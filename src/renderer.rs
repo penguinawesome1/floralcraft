@@ -1,9 +1,10 @@
 use crate::GameState;
 use crate::camera::update_camera;
-use crate::config::{Config, ConfigSet, TILE_H, TILE_W};
+use crate::config::{Config, TILE_H, TILE_W};
 use crate::player::PlayerMovedFilter;
 use crate::position::GridPosition;
 use crate::world::World as AeWorld;
+use crate::world::dictionary::ENTRIES;
 use aether::prelude::*;
 use bevy::prelude::*;
 use std::collections::HashSet;
@@ -13,7 +14,7 @@ pub struct RendererPlugin;
 impl Plugin for RendererPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RenderedChunks>();
-        app.add_systems(Startup, setup_renderer.after(ConfigSet));
+        app.add_systems(Startup, setup_renderer);
         app.add_systems(
             Update,
             (draw_chunks, update_camera).run_if(in_state(GameState::Playing)),
@@ -25,13 +26,12 @@ fn setup_renderer(
     mut commands: Commands,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     asset_server: Res<AssetServer>,
-    config: Res<Config>,
 ) {
     commands.spawn(Camera2d);
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2::new(TILE_W, TILE_H),
-        config.world.num_blocks,
+        ENTRIES.len() as u32,
         1,
         None,
         None,
@@ -66,7 +66,7 @@ pub fn draw_chunks(
         let chunk_pos = AeWorld::to_chunk(player_pos.0.as_ivec3());
 
         for pos in AeWorld::square_around(chunk_pos, radius) {
-            if rendered_chunks.0.contains(&pos) || !world.contains(pos) {
+            if rendered_chunks.0.contains(&pos) || !world.contains(&pos) {
                 continue;
             }
 
@@ -86,11 +86,11 @@ fn draw_chunk(
     let sprite_layout = sprite_assets.layout.clone();
 
     for pos in AeWorld::blocks_in(chunk_pos) {
-        let Ok(block) = world.block(pos) else {
+        let Ok(block) = world.block(&pos) else {
             return; // chunk isn't loaded
         };
 
-        if block == 0 || !world.is_exposed(pos).unwrap() {
+        if block == 0 || !world.is_exposed(&pos).unwrap() {
             continue;
         }
 

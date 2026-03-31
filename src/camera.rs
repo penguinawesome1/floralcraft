@@ -18,12 +18,12 @@ pub fn update_camera(
         .extend(cam_trans.translation.z);
     cam_trans.translation.smooth_nudge(
         &target_pos,
-        config.player.camera_decay_rate,
+        config.player.camera.decay_rate,
         time.delta_secs(),
     );
 
     if let Projection::Orthographic(ref mut ortho) = *projection {
-        let delta_zoom = -mouse_wheel.delta.y * config.player.camera_zoom_speed;
+        let delta_zoom = -mouse_wheel.delta.y * config.player.camera.zoom_speed;
         let multiplicative_zoom = 1.0 + delta_zoom;
 
         ortho.scale = (ortho.scale * multiplicative_zoom).clamp(0.1, 10.0);

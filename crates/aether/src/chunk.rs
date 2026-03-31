@@ -44,15 +44,29 @@ macro_rules! chunk {
             )*
 
             const fn subchunk_index(z: i32) -> usize {
-                z as usize / $h
+                (z.div_euclid($d as i32)) as usize
             }
 
             const fn local_to_sub(pos: BlockPos) -> BlockPos {
-                BlockPos::new(pos.x, pos.y, pos.z % $d as i32)
+                $crate::core::BlockPos::new(pos.x, pos.y, pos.z.rem_euclid($d as i32))
             }
 
             pub fn is_empty(&self) -> bool {
                 self.subchunks.iter().all(|s| s.is_empty())
+            }
+        }
+
+        impl ::std::ops::Deref for Chunk {
+            type Target = [Subchunk; $n];
+
+            fn deref(&self) -> &Self::Target {
+                &self.subchunks
+            }
+        }
+
+        impl ::std::ops::DerefMut for Chunk {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.subchunks
             }
         }
     };

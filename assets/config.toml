@@ -1,9 +1,18 @@
 [player]
-player_speed = 20.0
-camera_zoom_speed = 0.1
-camera_decay_rate = 5.0
+speed = 20.0
+
+[player.camera]
+zoom_speed = 0.1
+decay_rate = 5.0
 
 [world]
-num_blocks = 7
-render_distance = 0
-mode = "flat"
+mode = "normal"
+render_distance = 5
+
+[world.terrain]
+noise_profile = "DQkGDA=="
+seed = 1
+scale = 0.5
+min_depth = 50
+max_depth = 80
+dirt_depth = 4

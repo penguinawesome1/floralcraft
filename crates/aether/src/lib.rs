@@ -12,7 +12,7 @@ pub mod prelude {
     pub use crate::core::{BlockPos, ChunkPos, WorldField};
     pub use crate::error::{AccessError, ChunkAccessError, ChunkOverwriteError, ChunkStoreError};
     pub use crate::world;
-    pub use chroma::BoundsError;
+    pub use chroma::{BoundsError, Section};
 }
 
 #[doc(hidden)]

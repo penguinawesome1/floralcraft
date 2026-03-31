@@ -27,8 +27,8 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Default for Sectio
 
 impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D> {
     const VOLUME: usize = W * H * D;
-    const STRIDE_Y: usize = D;
-    const STRIDE_X: usize = H * D;
+    const STRIDE_Z: usize = W * H;
+    const STRIDE_Y: usize = W;
 
     /// Creates a new section given dimensions and initial bits per item.
     ///
@@ -62,6 +62,42 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
         }
     }
 
+    /// Create and fill an entire section at once with data.
+    ///
+    /// Data uses this indexing: z * width * height + y * width + x
+    pub fn from_data(data: &[T]) -> Self {
+        assert_eq!(data.len(), Self::VOLUME, "Data must match section volume");
+
+        let mut palette = Vec::new();
+        palette.push(T::default());
+
+        for item in data {
+            if !palette.contains(item) {
+                palette.push(*item);
+            }
+        }
+
+        let bits_per_item = (palette.len().max(2) - 1).ilog2() as u8 + 1;
+
+        let total_bits = (bits_per_item as usize) * Self::VOLUME;
+        let data_len = total_bits.div_ceil(u64::BITS as usize) + 1;
+
+        let mut section = Self {
+            data: vec![0; data_len],
+            palette,
+            bits_per_item,
+        };
+
+        for (i, item) in data.iter().enumerate() {
+            let palette_index = section.palette.iter().position(|id| id == item).unwrap();
+            unsafe {
+                section.set_ex(i, palette_index);
+            }
+        }
+
+        section
+    }
+
     /// Returns if there is only one item type and it has a value of zero.
     pub fn is_empty(&self) -> bool {
         if self.bits_per_item == 0 {
@@ -93,6 +129,21 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
         Some(unsafe { self.get_unchecked(pos) })
     }
 
+    /// Sets an item at the given three dimensional position.
+    /// Returns an error if position is out of the section bounds.
+    pub fn set(&mut self, pos: impl Into<IVec3>, item: T) -> Result<T, BoundsError> {
+        let pos = pos.into();
+        if !Self::is_in_bounds(pos) {
+            return Err(BoundsError::OutOfBounds(pos));
+        }
+
+        unsafe {
+            let old_item = self.get_unchecked(pos);
+            self.set_unchecked(pos, item);
+            Ok(old_item)
+        }
+    }
+
     /// Gets an item given its three dimensional position.
     ///
     /// # Panics
@@ -109,21 +160,6 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
     }
 
     /// Sets an item at the given three dimensional position.
-    /// Returns an error if position is out of the section bounds.
-    pub fn set(&mut self, pos: impl Into<IVec3>, item: T) -> Result<T, BoundsError> {
-        let pos = pos.into();
-        if !Self::is_in_bounds(pos) {
-            return Err(BoundsError::OutOfBounds(pos));
-        }
-
-        unsafe {
-            let old_item = self.get_unchecked(pos);
-            self.set_unchecked(pos, item);
-            Ok(old_item)
-        }
-    }
-
-    /// Sets an item at the given three dimensional position.
     ///
     /// # Panics
     ///
@@ -133,21 +169,7 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
     ///
     /// The caller must ensure that pos is strictly within the bounds of W, H, and D
     pub unsafe fn set_unchecked(&mut self, pos: IVec3, item: T) {
-        let palette_index = self
-            .palette
-            .iter()
-            .position(|&id| id == item)
-            .unwrap_or_else(|| {
-                let new_index: usize = self.palette.len();
-                self.palette.push(item);
-
-                if 1 << self.bits_per_item <= new_index {
-                    self.repack(self.bits_per_item + 1);
-                }
-
-                new_index
-            });
-
+        let palette_index = self.get_or_insert_palette_index(item);
         let item_index: usize = Self::item_index(pos);
 
         unsafe {
@@ -190,37 +212,6 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
         }
     }
 
-    #[inline]
-    const fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
-        let bit_offset: usize = item_index * (bits_per_item as usize);
-        let word_index: usize = bit_offset / u64::BITS as usize;
-        let bit_in_word: usize = bit_offset % u64::BITS as usize;
-        (word_index, bit_in_word)
-    }
-
-    #[inline]
-    const fn item_index(pos: IVec3) -> usize {
-        (pos.x as usize) * Self::STRIDE_X + (pos.y as usize) * Self::STRIDE_Y + (pos.z as usize)
-    }
-
-    #[inline]
-    fn palette_index(data: &[u64], bits: u8, item_index: usize) -> usize {
-        let (word_index, bit_in_word) = Self::split_index(item_index, bits);
-        let mut item = data[word_index];
-
-        if bit_in_word + (bits as usize) > u64::BITS as usize {
-            item >>= bit_in_word;
-            let remaining_bits_n: usize = bit_in_word + (bits as usize) - u64::BITS as usize;
-            let next_word: u64 = data[word_index + 1];
-            item |= next_word << ((bits as usize) - remaining_bits_n);
-        } else {
-            item >>= bit_in_word;
-        }
-
-        let mask = (1u64 << bits) - 1;
-        (item & mask) as usize
-    }
-
     /// Adjusts the data to account for a new amount of bits per item.
     fn repack(&mut self, new_bits_per_item: u8) {
         debug_assert!(
@@ -244,6 +235,53 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
         }
     }
 
+    fn get_or_insert_palette_index(&mut self, item: T) -> usize {
+        self.palette
+            .iter()
+            .position(|&id| id == item)
+            .unwrap_or_else(|| {
+                let new_index: usize = self.palette.len();
+                self.palette.push(item);
+
+                if 1 << self.bits_per_item <= new_index {
+                    self.repack(self.bits_per_item + 1);
+                }
+
+                new_index
+            })
+    }
+
+    #[inline]
+    const fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
+        let bit_offset: usize = item_index * (bits_per_item as usize);
+        let word_index: usize = bit_offset / u64::BITS as usize;
+        let bit_in_word: usize = bit_offset % u64::BITS as usize;
+        (word_index, bit_in_word)
+    }
+
+    #[inline]
+    const fn item_index(pos: IVec3) -> usize {
+        (pos.z as usize) * Self::STRIDE_Z + (pos.y as usize) * Self::STRIDE_Y + (pos.x as usize)
+    }
+
+    #[inline]
+    fn palette_index(data: &[u64], bits: u8, item_index: usize) -> usize {
+        let (word_index, bit_in_word) = Self::split_index(item_index, bits);
+        let mut item = data[word_index];
+
+        if bit_in_word + (bits as usize) > u64::BITS as usize {
+            item >>= bit_in_word;
+            let remaining_bits_n: usize = bit_in_word + (bits as usize) - u64::BITS as usize;
+            let next_word: u64 = data[word_index + 1];
+            item |= next_word << ((bits as usize) - remaining_bits_n);
+        } else {
+            item >>= bit_in_word;
+        }
+
+        let mask = (1u64 << bits) - 1;
+        (item & mask) as usize
+    }
+
     #[inline]
     const fn is_in_bounds(pos: IVec3) -> bool {
         (pos.x as u32) < W as u32 && (pos.y as u32) < H as u32 && (pos.z as u32) < D as u32
@@ -253,6 +291,8 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    type MySection = Section<u32, 16, 16, 16>;
 
     #[test]
     fn test_new_is_empty() {
@@ -318,5 +358,43 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_from_data_consistency() {
+        let mut data = vec![0u32; MySection::VOLUME];
+        data[0] = 10;
+        data[1] = 20;
+        data[2] = 30;
+        data[3] = 10;
+
+        let section = MySection::from_data(&data);
+
+        assert!(section.palette.contains(&0));
+        assert!(section.palette.contains(&10));
+        assert!(section.palette.contains(&20));
+        assert!(section.palette.contains(&30));
+        assert_eq!(section.palette.len(), 4);
+
+        assert_eq!(section.bits_per_item, 2);
+
+        for (i, &original_val) in data.iter().enumerate() {
+            let palette_index = MySection::palette_index(&section.data, section.bits_per_item, i);
+
+            let stored_val = section.palette[palette_index];
+            assert_eq!(original_val, stored_val, "Value mismatch at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_bit_width_edge_cases() {
+        let calc = |len: usize| (len.max(2) - 1).ilog2() as u8 + 1;
+
+        assert_eq!(calc(0), 1, "Empty palette should be 1 bit");
+        assert_eq!(calc(1), 1, "Single item palette should be 1 bit");
+        assert_eq!(calc(2), 1, "Two item palette should be 1 bit");
+        assert_eq!(calc(3), 2, "Three items need 2 bits");
+        assert_eq!(calc(4), 2, "Four items need 2 bits");
+        assert_eq!(calc(5), 3, "Five items need 3 bits");
     }
 }

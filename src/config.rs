@@ -1,9 +1,12 @@
 use bevy::prelude::*;
+use lattice::BlockGenParams;
 use serde::Deserialize;
 use std::fs;
 
 pub const TILE_W: u32 = 28;
 pub const TILE_H: u32 = 28;
+
+use bevy::prelude::Resource;
 
 #[derive(Resource, Debug, Deserialize)]
 pub struct Config {
@@ -13,26 +16,52 @@ pub struct Config {
 
 #[derive(Debug, Deserialize)]
 pub struct PlayerConfig {
-    pub player_speed: f32,
-    pub camera_zoom_speed: f32,
-    pub camera_decay_rate: f32,
+    pub speed: f32,
+    pub camera: CameraConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CameraConfig {
+    pub zoom_speed: f32,
+    pub decay_rate: f32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct WorldConfig {
-    pub num_blocks: u32,
-    pub render_distance: u32,
     pub mode: WorldMode,
+    pub render_distance: u32,
+    pub terrain: TerrainConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct TerrainConfig {
+    pub noise_profile: String,
+    pub seed: i32,
+    pub scale: f32,
+    pub min_depth: u32,
+    pub max_depth: u32,
+    pub dirt_depth: u32,
+}
+
+impl From<&TerrainConfig> for BlockGenParams {
+    fn from(config: &TerrainConfig) -> Self {
+        Self {
+            seed: config.seed,
+            scale: config.scale,
+            min_depth: config.min_depth,
+            max_depth: config.max_depth,
+            dirt_depth: config.dirt_depth,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum WorldMode {
-    #[serde(rename = "flat")]
-    Flat,
-    #[serde(rename = "skyblock")]
-    Skyblock,
-    #[serde(other)]
+    #[default]
     Normal,
+    Flat,
+    Skyblock,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
