@@ -1,5 +1,3 @@
-#![cfg(feature = "persistence")]
-
 use crate::core::ChunkPos;
 use crate::error::ChunkStoreError;
 use async_trait::async_trait;

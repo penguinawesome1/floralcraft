@@ -19,13 +19,10 @@ pub struct GridPosition(pub Vec3);
 
 fn project_grid_to_screen(
     projector: Res<ProjectorRes>,
-    mut query: Query<
-        (&GridPosition, &mut Transform),
-        Or<(Added<GridPosition>, Changed<GridPosition>)>,
-    >,
+    mut query: Query<(&GridPosition, &mut Transform), Changed<GridPosition>>,
 ) {
     for (grid_pos, mut transform) in &mut query {
-        let order = (grid_pos.0.x + grid_pos.0.z - grid_pos.0.y) * 0.1;
+        let order = grid_pos.0.element_sum() * 0.1;
         let screen_pos = projector.0.grid_to_screen(grid_pos.0);
         transform.translation = vec3(screen_pos.x, screen_pos.z - screen_pos.y, order);
     }

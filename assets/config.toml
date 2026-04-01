@@ -7,7 +7,7 @@ decay_rate = 5.0
 
 [world]
 mode = "normal"
-render_distance = 2
+render_distance = 1
 
 [world.terrain]
 noise_profile = "DQkGDA=="

@@ -134,10 +134,7 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
     /// Returns if there is only one item type and it has a value of zero.
     pub fn is_empty(&self) -> bool {
         if self.bits_per_item == 0 {
-            return self
-                .palette
-                .first()
-                .map_or(true, |&val| val == T::default());
+            return self.palette.first().is_none_or(|&val| val == T::default());
         }
 
         self.data.iter().all(|&word| word == 0)

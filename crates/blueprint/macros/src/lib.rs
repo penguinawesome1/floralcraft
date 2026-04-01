@@ -128,8 +128,7 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
     let full_path = Path::new(&root).join(&blueprint.path);
     let full_path_str = full_path.to_str().expect("Pathbuf must be string");
     let file_watch = quote! { const _: &str = include_str!(#full_path_str); };
-    let content = fs::read_to_string(&full_path)
-        .expect(&format!("Could not find TOML file at {:?}", full_path));
+    let content = fs::read_to_string(&full_path).expect("Could not find TOML file");
 
     let toml_data: Table = toml::from_str(&content).expect("Invalid TOML");
     let ty = &blueprint.ty;
@@ -146,7 +145,7 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
                 let key = layout.name.to_string();
                 let toml_val = table
                     .get(&key)
-                    .expect(&format!("Missing field '{}' in TOML entry", key));
+                    .unwrap_or_else(|| panic!("Missing field '{}' in TOML entry", key));
 
                 if layout.num_bits == 1 {
                     let is_true = match toml_val {
@@ -161,7 +160,7 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
                 } else {
                     let val = toml_val
                         .as_integer()
-                        .expect(&format!("Field '{}' must be an integer", key));
+                        .unwrap_or_else(|| panic!("Field '{}' must be an integer", key));
 
                     let max_val = (1u128 << layout.num_bits) - 1;
                     if val as u128 > max_val {

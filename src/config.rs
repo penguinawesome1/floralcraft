@@ -84,8 +84,7 @@ impl Plugin for ConfigPlugin {
 struct ConfigPath(String);
 
 fn load_config(mut commands: Commands, path_res: Res<ConfigPath>) {
-    let config_str = fs::read_to_string(&path_res.0)
-        .expect(&format!("Could not read config file at {}", path_res.0));
+    let config_str = fs::read_to_string(&path_res.0).expect("Could not read config file");
 
     let config: Config =
         toml::from_str(&config_str).expect("Failed to parse the config toml. Check your syntax!");

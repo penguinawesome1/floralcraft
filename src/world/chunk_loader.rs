@@ -53,7 +53,7 @@ fn setup_generator_resources(mut commands: Commands, config: Res<Config>) {
     let params = (&config.world.terrain).into();
 
     let generator: Arc<dyn BlockGen<MyBlocks, SUBCHUNK_D, SUBCHUNK_V>> = match world_mode {
-        WorldMode::Flat => Arc::new(FlatGen::<MyBlocks>::new()),
+        WorldMode::Flat => Arc::new(FlatGen::<MyBlocks>::default()),
         WorldMode::Normal => Arc::new(NormalGen::<MyBlocks>::new(
             &config.world.terrain.noise_profile,
             params,

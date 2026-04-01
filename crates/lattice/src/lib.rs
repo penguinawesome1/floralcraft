@@ -43,8 +43,8 @@ pub struct FlatGen<B: Blocks> {
     _marker: PhantomData<B>,
 }
 
-impl<B: Blocks> FlatGen<B> {
-    pub fn new() -> Self {
+impl<B: Blocks> Default for FlatGen<B> {
+    fn default() -> Self {
         Self {
             _marker: PhantomData,
         }

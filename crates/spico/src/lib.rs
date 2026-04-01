@@ -80,7 +80,7 @@ impl Projector {
     pub fn grid_to_screen(&self, pos: impl Into<Vec3>) -> Vec3 {
         let pos: Vec3 = pos.into();
         let screen_pos: Vec2 = self.proj * pos.truncate();
-        screen_pos.extend((pos.z as f32) * self.z_scale)
+        screen_pos.extend(pos.z * self.z_scale)
     }
 
     /// Converts screen positions back to discrete 3D grid coordinates.
