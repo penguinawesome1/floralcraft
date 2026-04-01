@@ -16,6 +16,7 @@ pub fn update_camera(
         .translation
         .truncate()
         .extend(cam_trans.translation.z);
+
     cam_trans.translation.smooth_nudge(
         &target_pos,
         config.player.camera.decay_rate,

@@ -5,6 +5,8 @@ use std::fs;
 
 pub const TILE_W: u32 = 28;
 pub const TILE_H: u32 = 28;
+pub const HALF_TILE_W: u32 = TILE_W / 2;
+pub const HALF_TILE_H: u32 = TILE_H / 2;
 
 use bevy::prelude::Resource;
 

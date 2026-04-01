@@ -1,5 +1,14 @@
 #![allow(unused)]
 
+/// The `subchunk!` macro generates a `Subchunk` struct using sparse voxel storage.
+///
+/// Each field in a subchunk is stored in an `Option<Section>`. If a field consists
+/// entirely of the default value (e.g., all `false` or all `0`), the `Section` is
+/// deallocated (set to `None`) to save memory.
+///
+/// # Memory Management
+/// Setting a value to its type's `Default` will attempt to shrink the subchunk
+/// by dropping empty sections.
 #[macro_export]
 macro_rules! subchunk {
     (

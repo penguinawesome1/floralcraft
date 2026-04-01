@@ -9,6 +9,11 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::path::PathBuf;
 use tokio::fs;
 
+/// Provides asynchronous storage operations for chunks.
+///
+/// Implementations of this trait (like [`FileStorage`][crate::storage::FileStorage])
+/// handle the serialization and I/O required to save and load chunk data
+/// from a persistent backing store.
 #[async_trait]
 pub trait ChunkStorage<C> {
     async fn save_chunk(&self, pos: ChunkPos, chunk: &C) -> Result<(), ChunkStoreError>;

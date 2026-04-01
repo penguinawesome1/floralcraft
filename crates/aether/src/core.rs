@@ -18,6 +18,10 @@ pub const BLOCK_OFFSETS: [BlockPos; 6] = [
     BlockPos::new(0, 0, -1),
 ];
 
+/// Trait for types that can be converted to and from a `u16` for compact storage.
+///
+/// This is used by the underlying `Section` to pack various data types into
+/// bit-aligned buffers.
 pub trait Packable: Sized {
     fn from_u16(value: u16) -> Self;
     fn to_u16(value: Self) -> u16;
@@ -49,16 +53,27 @@ impl Packable for bool {
     }
 }
 
+/// A marker trait for types that can be saved to disk or sent over the network.
+///
+/// When the `persistence` feature is enabled, this trait requires `Serialize`
+/// and `DeserializeOwned`. Otherwise, it is a transparent wrapper for all types.
 #[cfg(feature = "persistence")]
 pub trait Persistable: serde::Serialize + serde::de::DeserializeOwned {}
 #[cfg(feature = "persistence")]
 impl<T: serde::Serialize + serde::de::DeserializeOwned> Persistable for T {}
 
+/// A marker trait for types that can be saved to disk or sent over the network.
+///
+/// Note: Persistence is currently **disabled**. This trait currently has no bounds.
 #[cfg(not(feature = "persistence"))]
 pub trait Persistable {}
 #[cfg(not(feature = "persistence"))]
 impl<T> Persistable for T {}
 
+/// Defines a specific data field within the voxel world.
+///
+/// Types implementing this trait define their bit-width and unique index
+/// within the bit-packed storage of a section.
 pub trait WorldField {
     type T: Clone + Copy + PartialEq + Default + Packable + Persistable;
     const BITS: u8;

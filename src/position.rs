@@ -1,4 +1,4 @@
-use crate::config::{TILE_H, TILE_W};
+use crate::config::{HALF_TILE_H, HALF_TILE_W};
 use bevy::prelude::*;
 use spico::Projector;
 
@@ -6,10 +6,7 @@ pub struct ProjectionPlugin;
 
 impl Plugin for ProjectionPlugin {
     fn build(&self, app: &mut App) {
-        const HTW: u32 = TILE_W / 2;
-        const HTH: u32 = TILE_H / 2;
-
-        app.insert_resource(ProjectorRes(Projector::new::<HTW, HTH>()))
+        app.insert_resource(ProjectorRes(Projector::new::<HALF_TILE_W, HALF_TILE_H>()))
             .add_systems(Update, project_grid_to_screen);
     }
 }
@@ -28,7 +25,8 @@ fn project_grid_to_screen(
     >,
 ) {
     for (grid_pos, mut transform) in &mut query {
+        let order = (grid_pos.0.x + grid_pos.0.y - grid_pos.0.z) * 0.1;
         let screen_pos = projector.0.grid_to_screen(grid_pos.0);
-        transform.translation = vec3(screen_pos.x, screen_pos.z - screen_pos.y, 0.0);
+        transform.translation = vec3(screen_pos.x, screen_pos.z - screen_pos.y, order);
     }
 }

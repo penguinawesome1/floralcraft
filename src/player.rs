@@ -30,6 +30,6 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn apply_gravity(mut query: Query<&mut GridPosition, With<Player>>) {
     for mut pos in &mut query {
-        pos.0.z -= 0.01;
+        pos.0.z += 0.01;
     }
 }

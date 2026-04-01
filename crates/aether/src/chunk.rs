@@ -1,5 +1,14 @@
 #![allow(unused)]
 
+/// The `chunk!` macro generates a `Chunk` struct composed of a fixed array of `Subchunk`s.
+///
+/// Chunks represent a vertical column in the world. Accessing a block within a chunk
+/// automatically calculates which `Subchunk` layer contains the target coordinate
+/// based on the `z` height.
+///
+/// # Arguments
+/// - `$w, $h, $d`: Dimensions of a single subchunk.
+/// - `$n`: The number of subchunks stacked vertically to form a full chunk.
 #[macro_export]
 macro_rules! chunk {
     (

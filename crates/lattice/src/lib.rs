@@ -1,3 +1,21 @@
+//! Procedural world generation for the Aether engine.
+//!
+//! This crate defines the interface for mapping noise functions and mathematical
+//! distributions to concrete voxel data. It uses a provider-pattern via the
+//! [`Blocks`] trait to remain agnostic of the specific block types used by the game.
+//!
+//! ## Key Components
+//! - [`Blocks`]: A provider trait that must be implemented by the game's block registry
+//!   to map abstract concepts (like `DIRT` or `GRASS`) to engine-specific types.
+//! - [`BlockGen`]: The core trait for procedural generators. It populates a flattened
+//!   voxel buffer for a given chunk region.
+//! - [`NormalGen`]: A high-performance 2D-heightmap generator powered by `FastNoise2`.
+//!
+//! ## Coordinate Mapping
+//! Generation occurs in a "Layer-First" layout (`Z -> Y -> X`) to match the
+//! memory alignment of Aether subchunks, ensuring cache-friendly fills during the
+//! world-loading phase.
+
 use fastnoise2::SafeNode;
 use glam::IVec3;
 use std::fmt::Debug;
@@ -35,6 +53,8 @@ impl<B: Blocks> FlatGen<B> {
 
 impl<B: Blocks, const L: usize, const V: usize> BlockGen<B, L, V> for FlatGen<B> {
     fn choose_blocks(&self, start_pos: IVec3, out: &mut [B::T; V]) {
+        debug_assert_eq!(V, L * L * L, "Volume must be L^3");
+
         for z in 0..L {
             let world_z = start_pos.z + z as i32;
 
@@ -78,6 +98,8 @@ impl<B: Blocks> NormalGen<B> {
 
 impl<B: Blocks, const L: usize, const V: usize> BlockGen<B, L, V> for NormalGen<B> {
     fn choose_blocks(&self, start_pos: IVec3, out: &mut [B::T; V]) {
+        debug_assert_eq!(V, L * L * L, "Volume must be L^3");
+
         let BlockGenParams {
             seed,
             scale,

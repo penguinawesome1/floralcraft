@@ -1,3 +1,9 @@
+//! Procedural macros for the `blueprint` crate.
+//!
+//! This crate contains the `bake_toml` macro logic. It is separated into its own
+//! crate as per Rust's requirement that procedural macros must reside in a
+//! dedicated `proc-macro` library.
+
 use quote::quote;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -120,6 +126,8 @@ fn make_entry(blueprint: &Blueprint) -> proc_macro2::TokenStream {
 fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
     let root = std::env::var("CARGO_MANIFEST_DIR").expect("Failed to get CARGO_MANIFEST_DIR");
     let full_path = Path::new(&root).join(&blueprint.path);
+    let full_path_str = full_path.to_str().expect("Pathbuf must be string");
+    let file_watch = quote! { const _: &str = include_str!(#full_path_str); };
     let content = fs::read_to_string(&full_path)
         .expect(&format!("Could not find TOML file at {:?}", full_path));
 
@@ -154,6 +162,15 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
                     let val = toml_val
                         .as_integer()
                         .expect(&format!("Field '{}' must be an integer", key));
+
+                    let max_val = (1u128 << layout.num_bits) - 1;
+                    if val as u128 > max_val {
+                        panic!(
+                            "Field '{}' value {} exceeds maximum allowed for {} bits ({})",
+                            key, val, layout.num_bits, max_val
+                        );
+                    }
+
                     quote! { (#val as #ty) }
                 }
             });
@@ -162,6 +179,8 @@ fn make_toml_dictionary(blueprint: &Blueprint) -> proc_macro2::TokenStream {
         });
 
     quote! {
+        #file_watch
+
         pub const ENTRIES: &[Entry] = &[
             #(#entries),*
         ];

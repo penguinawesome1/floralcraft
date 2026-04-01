@@ -1,5 +1,18 @@
 #![allow(unused)]
 
+/// The `world!` macro generates a thread-safe, concurrent `World` structure.
+///
+/// It uses `DashMap` for high-concurrency access and generates getters/setters
+/// for each field defined in the macro.
+///
+/// # Generated API
+/// - `get(pos)` / `get_mut(pos)`: Access specific chunks by `ChunkPos`.
+/// - `field(pos)`: Retrieves the value of a field at a global `BlockPos`.
+/// - `set_field(pos, val)`: Updates a field at a global `BlockPos`.
+///
+/// # Coordinate System
+/// The world uses Euclidean division to map global `BlockPos` to `ChunkPos` and
+/// local offsets.
 #[macro_export]
 macro_rules! world {
     (
