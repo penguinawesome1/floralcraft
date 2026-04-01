@@ -1,7 +1,9 @@
 [package]
 name = "blueprint"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Schema-driven voxel definitions and structural templates for the Floralcraft engine."
 
 [dependencies]
 blueprint_macros = { path = "macros" }

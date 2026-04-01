@@ -1,7 +1,9 @@
 [package]
 name = "floralcraft"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license = "Proprietary"
+publish = false
 
 [dependencies]
 bevy = { version = "0.18", features = ["dynamic_linking"] }
@@ -16,14 +18,12 @@ bevy_async_task = "0.12"
 
 [workspace]
 resolver = "2"
-members = [
-    ".",
-    "crates/aether",
-    "crates/blueprint",
-    "crates/chroma",
-    "crates/lattice",
-    "crates/spico",
-]
+members = [".", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/penguinawesome1/floralcraft"
 
 [profile.dev.package."*"]
 opt-level = 3

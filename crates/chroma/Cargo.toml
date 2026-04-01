@@ -1,7 +1,9 @@
 [package]
 name = "chroma"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "High-performance bit-packed voxel storage and section management for the Floralcraft engine."
 
 [dependencies]
 glam = { version = "0.30", default-features = false, features = ["std"] }

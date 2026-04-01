@@ -1,7 +1,9 @@
 [package]
 name = "spico"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "2:1 isometric coordinate projection and spatial transformation math for the Floralcraft engine."
 
 [dependencies]
 glam = "0.30"
