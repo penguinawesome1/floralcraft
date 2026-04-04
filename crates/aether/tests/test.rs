@@ -9,7 +9,7 @@ use {
 };
 
 #[cfg(feature = "persistence")]
-const CHUNKS_DIR: &'static str = "tests/chunks";
+const CHUNKS_DIR: &str = "tests/chunks";
 
 world! {
     ==
@@ -32,8 +32,8 @@ fn test_all() -> Result<(), AccessError> {
     world.set_is_exposed(&pos_1, false)?;
     world.set_is_exposed(&pos_2, true)?;
 
-    assert_eq!(world.is_exposed(&pos_1)?, false);
-    assert_eq!(world.is_exposed(&pos_2)?, true);
+    assert!(!world.is_exposed(&pos_1)?);
+    assert!(world.is_exposed(&pos_2)?);
 
     Ok(())
 }
@@ -69,8 +69,8 @@ async fn test_get_and_set_world() -> Result<(), AccessError> {
     world.set_is_exposed(&pos_1, false)?;
     world.set_is_exposed(&pos_2, true)?;
 
-    assert_eq!(world.is_exposed(&pos_1)?, false);
-    assert_eq!(world.is_exposed(&pos_2)?, true);
+    assert!(!world.is_exposed(&pos_1)?);
+    assert!(world.is_exposed(&pos_2)?);
 
     Ok(())
 }

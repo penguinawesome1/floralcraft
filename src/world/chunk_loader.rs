@@ -1,5 +1,5 @@
 use crate::GameState;
-use crate::config::{Config, ConfigSet, WorldMode};
+use crate::config::{Config, WorldMode};
 use crate::world::{
     Chunk, ChunkPos, MySection, SUBCHUNK_D, SUBCHUNK_V, World as AeWorld,
     dictionary::{BlockType, ENTRIES},
@@ -18,7 +18,7 @@ impl Plugin for ChunkLoaderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AeWorld>();
         app.init_resource::<ChunksLoading>();
-        app.add_systems(Startup, setup_generator_resources.after(ConfigSet));
+        app.add_systems(OnEnter(GameState::Playing), setup_generator_resources);
         app.add_systems(
             Update,
             (spawn_chunk_tasks, handle_chunk_tasks).run_if(in_state(GameState::Playing)),

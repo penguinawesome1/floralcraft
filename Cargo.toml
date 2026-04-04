@@ -6,7 +6,7 @@ license = "Proprietary"
 publish = false
 
 [dependencies]
-bevy = { version = "0.18", features = ["dynamic_linking"] }
+bevy = { version = "0.18", features = ["dynamic_linking", "file_watcher"] }
 bevy_camera = "0.18"
 blueprint = { path = "crates/blueprint" }
 spico = { path = "crates/spico" }
@@ -15,6 +15,7 @@ aether = { path = "crates/aether", features = ["persistence"] }
 toml = "1.0"
 serde = "1.0"
 bevy_async_task = "0.12"
+bevy_common_assets = { version = "0.16", features = ["toml"] }
 
 [workspace]
 resolver = "2"
