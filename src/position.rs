@@ -1,18 +1,22 @@
 use crate::config::{HALF_TILE_H, HALF_TILE_W};
 use bevy::prelude::*;
 use spico::Projector;
+use std::sync::Arc;
 
 pub struct ProjectionPlugin;
 
 impl Plugin for ProjectionPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ProjectorRes(Projector::new::<HALF_TILE_W, HALF_TILE_H>()))
-            .add_systems(Update, project_grid_to_screen);
+        app.insert_resource(ProjectorRes(Arc::new(Projector::new::<
+            HALF_TILE_W,
+            HALF_TILE_H,
+        >())))
+        .add_systems(Update, project_grid_to_screen);
     }
 }
 
-#[derive(Resource)]
-pub struct ProjectorRes(pub Projector);
+#[derive(Resource, Clone)]
+pub struct ProjectorRes(pub Arc<Projector>);
 
 #[derive(Component)]
 pub struct GridPosition(pub Vec3);

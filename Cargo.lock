@@ -94,6 +94,7 @@ dependencies = [
  "itertools 0.14.0",
  "paste",
  "serde",
+ "spiral",
  "thiserror 2.0.18",
  "tokio",
 ]
@@ -4775,6 +4776,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
 dependencies = [
  "portable-atomic",
+]
+
+[[package]]
+name = "spiral"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f42795bcb3d996b05dcb5c2ff00563f21d78d49585764bef7b26b28468210c0"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

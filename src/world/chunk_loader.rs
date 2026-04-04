@@ -5,9 +5,7 @@ use crate::world::{
     dictionary::{BlockType, ENTRIES},
 };
 use bevy::prelude::*;
-use bevy::tasks::block_on;
-use bevy::tasks::futures_lite::future;
-use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future};
 use lattice::{BlockGen, Blocks, FlatGen, NormalGen};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -17,11 +15,11 @@ pub struct ChunkLoaderPlugin;
 impl Plugin for ChunkLoaderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AeWorld>();
-        app.init_resource::<ChunksLoading>();
+        app.init_resource::<LoadsQueued>();
         app.add_systems(OnEnter(GameState::Playing), setup_generator_resources);
         app.add_systems(
             Update,
-            (spawn_chunk_tasks, handle_chunk_tasks).run_if(in_state(GameState::Playing)),
+            (dispatch_chunk_loading, poll_chunk_loading).run_if(in_state(GameState::Playing)),
         );
     }
 }
@@ -43,10 +41,10 @@ impl Blocks for MyBlocks {
 pub struct BlockGenRes(Arc<dyn BlockGen<MyBlocks, SUBCHUNK_D, SUBCHUNK_V>>);
 
 #[derive(Component)]
-struct ChunkTask(Task<(ChunkPos, Chunk)>);
+struct LoadTask(Task<(ChunkPos, Chunk)>);
 
 #[derive(Resource, Default)]
-struct ChunksLoading(HashSet<ChunkPos>);
+struct LoadsQueued(HashSet<ChunkPos>);
 
 fn setup_generator_resources(mut commands: Commands, config: Res<Config>) {
     let world_mode = &config.world.mode;
@@ -64,22 +62,27 @@ fn setup_generator_resources(mut commands: Commands, config: Res<Config>) {
     commands.insert_resource(BlockGenRes(generator));
 }
 
-fn spawn_chunk_tasks(
+fn dispatch_chunk_loading(
     mut commands: Commands,
     world: Res<AeWorld>,
     block_gen: Res<BlockGenRes>,
     config: Res<Config>,
-    mut chunks_loading: ResMut<ChunksLoading>,
+    mut loads_queued: ResMut<LoadsQueued>,
 ) {
     let player_chunk_pos = ChunkPos::new(0, 0);
     let task_pool = AsyncComputeTaskPool::get();
-    let chunk_positions: Vec<ChunkPos> =
-        AeWorld::square_around(player_chunk_pos, config.world.render_distance)
-            .filter(|pos| !world.contains(pos) && !chunks_loading.0.contains(pos))
-            .collect();
+    let mut spawns_left = 5;
 
-    for pos in chunk_positions {
-        chunks_loading.0.insert(pos);
+    for pos in AeWorld::spiral_around(player_chunk_pos, config.world.render_distance) {
+        if spawns_left <= 0 {
+            return;
+        }
+
+        if loads_queued.0.contains(&pos) || world.contains(&pos) {
+            continue;
+        }
+
+        loads_queued.0.insert(pos);
 
         let gen_handle = block_gen.clone();
 
@@ -88,22 +91,25 @@ fn spawn_chunk_tasks(
             (pos, chunk)
         });
 
-        commands.spawn(ChunkTask(task));
+        commands.spawn(LoadTask(task));
+        spawns_left -= 1;
     }
 }
 
-fn handle_chunk_tasks(
+fn poll_chunk_loading(
     mut commands: Commands,
     world: Res<AeWorld>,
-    mut chunks_loading: ResMut<ChunksLoading>,
-    mut tasks: Query<(Entity, &mut ChunkTask)>,
+    mut loads_queued: ResMut<LoadsQueued>,
+    mut tasks: Query<(Entity, &mut LoadTask)>,
 ) {
     for (entity, mut task) in &mut tasks {
-        if let Some((pos, chunk)) = block_on(future::poll_once(&mut task.0)) {
-            world.insert(&pos, Some(chunk)).unwrap();
-            chunks_loading.0.remove(&pos);
-            commands.entity(entity).despawn();
-        }
+        let Some((pos, chunk)) = block_on(future::poll_once(&mut task.0)) else {
+            continue;
+        };
+
+        world.insert(&pos, Some(chunk)).unwrap();
+        loads_queued.0.remove(&pos);
+        commands.entity(entity).despawn();
     }
 }
 

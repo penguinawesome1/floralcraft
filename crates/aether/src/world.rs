@@ -30,9 +30,11 @@ macro_rules! world {
 
         $( #[$common_meta] )*
         $( #[$world_meta] )*
-        #[derive(Default)]
+        #[derive(Default, Clone)]
         pub struct World {
-            pub chunks: $crate::__private::dashmap::DashMap<$crate::core::ChunkPos, Chunk, $crate::__private::ahash::RandomState>,
+            pub chunks: ::std::sync::Arc<
+                $crate::__private::dashmap::DashMap<$crate::core::ChunkPos, Chunk, $crate::__private::ahash::RandomState>
+            >,
         }
 
         impl World {
@@ -118,6 +120,15 @@ macro_rules! world {
                 let radius: i32 = radius as i32;
                 $crate::__private::itertools::iproduct!(-radius..=radius, -radius..=radius)
                     .map(move |(x, y)| origin + $crate::core::ChunkPos::new(x, y))
+            }
+
+            /// Gets an iter of all chunk positions in a spiral out from the passed origin position.
+            /// Radius of 0 results in 1 position.
+            pub fn spiral_around(origin: $crate::core::ChunkPos, radius: u32)
+                    -> impl Iterator<Item = $crate::core::ChunkPos> {
+                let radius: i32 = radius as i32;
+                $crate::__private::spiral::ChebyshevIterator::new(origin.x, origin.y, radius)
+                    .map(move |(x, y)| $crate::core::ChunkPos::new(x, y))
             }
 
             /// Returns all adjacent chunk offsets.

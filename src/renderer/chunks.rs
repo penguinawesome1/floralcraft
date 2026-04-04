@@ -1,74 +1,115 @@
 use crate::{
     config::{Config, TILE_H, TILE_W},
-    player::PlayerMovedFilter,
     position::{GridPosition, ProjectorRes},
     renderer::SpriteAssets,
     world::{CHUNK_V, World as AeWorld, dictionary::BlockType},
 };
 use aether::prelude::*;
 use bevy::asset::RenderAssetUsages;
-use bevy::ecs::system::SystemParam;
+use bevy::camera::primitives::MeshAabb;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
+use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future};
 use spico::Projector;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 #[derive(Resource, Default)]
 pub struct RenderedChunks(pub HashSet<IVec2>);
 
-#[derive(SystemParam)]
-pub struct ChunkRenderer<'w, 's> {
-    pub commands: Commands<'w, 's>,
-    pub meshes: ResMut<'w, Assets<Mesh>>,
-    pub materials: ResMut<'w, Assets<ColorMaterial>>,
-    pub layouts: Res<'w, Assets<TextureAtlasLayout>>,
-    pub sprite_assets: Res<'w, SpriteAssets>,
-    pub world: Res<'w, AeWorld>,
-}
+#[derive(Component)]
+pub struct DrawTask(Task<(ChunkPos, Mesh)>);
 
-pub fn draw_chunks(
-    mut renderer: ChunkRenderer,
-    mut rendered_chunks: ResMut<RenderedChunks>,
+#[derive(Resource, Default)]
+pub struct DrawsQueued(HashSet<ChunkPos>);
+
+pub fn dispatch_chunk_drawing(
+    mut commands: Commands,
+    rendered_chunks: Res<RenderedChunks>,
+    world: Res<AeWorld>,
     config: Res<Config>,
     projector: Res<ProjectorRes>,
-    query: Query<&GridPosition, PlayerMovedFilter>,
+    sprite_assets: Res<SpriteAssets>,
+    layouts: Res<Assets<TextureAtlasLayout>>,
+    mut draws_queued: ResMut<DrawsQueued>,
 ) {
-    let radius = config.world.render_distance;
+    let player_chunk_pos = ChunkPos::new(0, 0);
+    let task_pool = AsyncComputeTaskPool::get();
+    let layout = Arc::new(layouts.get(&sprite_assets.layout).unwrap().clone());
+    let mut spawns_left = 20;
 
-    for player_pos in &query {
-        let player_chunk_pos = AeWorld::to_chunk(player_pos.0.as_ivec3());
-
-        for pos in AeWorld::square_around(player_chunk_pos, radius) {
-            if rendered_chunks.0.contains(&pos) || !renderer.world.contains(&pos) {
-                continue;
-            }
-
-            spawn_chunk(&mut renderer, &projector.0, pos);
-            rendered_chunks.0.insert(pos);
+    for pos in AeWorld::spiral_around(player_chunk_pos, config.world.render_distance) {
+        if spawns_left <= 0 {
+            return;
         }
+
+        if rendered_chunks.0.contains(&pos)
+            || draws_queued.0.contains(&pos)
+            || !world.contains(&pos)
+        {
+            continue;
+        }
+
+        draws_queued.0.insert(pos);
+
+        let proj_handle = projector.0.clone();
+        let layout_handle = layout.clone();
+        let world_handle = world.clone();
+
+        let task = task_pool.spawn(async move {
+            let mesh = build_chunk_mesh(world_handle, layout_handle, proj_handle, pos);
+            (pos, mesh)
+        });
+
+        commands.spawn(DrawTask(task));
+        spawns_left -= 1;
     }
 }
 
-fn spawn_chunk(ctx: &mut ChunkRenderer, projector: &Projector, chunk_pos: ChunkPos) {
-    let layout = ctx.layouts.get(&ctx.sprite_assets.layout).unwrap();
-    let mesh = build_chunk_mesh(&ctx.world, layout, projector, chunk_pos);
-    let origin_pos = AeWorld::to_block(&chunk_pos);
+// fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+//     commands.spawn((
+//         Player,
+//         GridPosition(Vec3::default()),
+//         Sprite::from_image(asset_server.load("player/idle.png")),
+//         Transform::from_scale(Vec3::splat(0.1)),
+//         Visibility::default(),
+//     ));
+// }
 
-    ctx.commands.spawn((
-        Mesh2d(ctx.meshes.add(mesh)),
-        MeshMaterial2d(
-            ctx.materials
-                .add(ColorMaterial::from(ctx.sprite_assets.texture.clone())),
-        ),
-        GridPosition(origin_pos.as_vec3()),
-        Visibility::default(),
-    ));
+pub fn poll_chunk_drawing(
+    mut commands: Commands,
+    mut rendered_chunks: ResMut<RenderedChunks>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    sprite_assets: Res<SpriteAssets>,
+    tasks: Query<(Entity, &mut DrawTask)>,
+    mut draws_queued: ResMut<DrawsQueued>,
+) {
+    for (entity, mut task) in tasks {
+        let Some((pos, mesh)) = block_on(future::poll_once(&mut task.0)) else {
+            continue;
+        };
+
+        let origin_pos = AeWorld::to_block(&pos);
+
+        commands.spawn((
+            Mesh2d(meshes.add(mesh)),
+            MeshMaterial2d(sprite_assets.material.clone()),
+            GridPosition(origin_pos.as_vec3()),
+        ));
+
+        rendered_chunks.0.insert(pos);
+        draws_queued.0.remove(&pos);
+        commands.entity(entity).despawn();
+    }
 }
 
+/// # Panics
+///
+/// Panics if the chunk is not loaded at the given [`ChunkPos`] before the function is called.
 fn build_chunk_mesh(
-    world: &AeWorld,
-    layout: &TextureAtlasLayout,
-    projector: &Projector,
+    world: AeWorld,
+    layout: Arc<TextureAtlasLayout>,
+    projector: Arc<Projector>,
     chunk_pos: ChunkPos,
 ) -> Mesh {
     let mut positions = Vec::with_capacity(CHUNK_V * 4);
@@ -110,10 +151,7 @@ fn build_chunk_mesh(
 
     for pos in AeWorld::blocks_in(chunk_pos) {
         let local_pos = pos - origin_pos;
-
-        let Ok(block) = world.block(&pos) else {
-            continue;
-        };
+        let block = world.block(&pos).unwrap();
 
         if block == 0 || !world.is_exposed(&pos).unwrap_or(false) {
             continue;
@@ -126,12 +164,13 @@ fn build_chunk_mesh(
         push_quad(screen_pos, depth, block);
     }
 
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    );
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_indices(Indices::U32(indices));
+    mesh.compute_aabb();
     mesh
 }

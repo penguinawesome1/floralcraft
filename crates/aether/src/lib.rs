@@ -66,6 +66,7 @@ pub mod __private {
     pub use chroma;
     pub use dashmap;
     pub use itertools;
+    pub use spiral;
     pub use paste;
     #[cfg(feature = "persistence")]
     pub use serde;
