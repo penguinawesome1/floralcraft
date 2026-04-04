@@ -7,6 +7,7 @@ use crate::{
 use aether::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::camera::primitives::MeshAabb;
+use bevy::ecs::system::SystemParam;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future};
@@ -23,16 +24,30 @@ pub struct DrawTask(Task<(ChunkPos, Mesh)>);
 #[derive(Resource, Default)]
 pub struct DrawsQueued(HashSet<ChunkPos>);
 
-pub fn dispatch_chunk_drawing(
-    mut commands: Commands,
-    rendered_chunks: Res<RenderedChunks>,
-    world: Res<AeWorld>,
-    config: Res<Config>,
-    projector: Res<ProjectorRes>,
-    sprite_assets: Res<SpriteAssets>,
-    layouts: Res<Assets<TextureAtlasLayout>>,
-    mut draws_queued: ResMut<DrawsQueued>,
-) {
+#[derive(SystemParam)]
+pub struct DrawingContext<'w, 's> {
+    commands: Commands<'w, 's>,
+    world: Res<'w, AeWorld>,
+    config: Res<'w, Config>,
+    projector: Res<'w, ProjectorRes>,
+    rendered_chunks: Res<'w, RenderedChunks>,
+    draws_queued: ResMut<'w, DrawsQueued>,
+    sprite_assets: Res<'w, SpriteAssets>,
+    layouts: Res<'w, Assets<TextureAtlasLayout>>,
+}
+
+pub fn dispatch_chunk_drawing(ctx: DrawingContext) {
+    let DrawingContext {
+        mut commands,
+        world,
+        config,
+        projector,
+        rendered_chunks,
+        mut draws_queued,
+        sprite_assets,
+        layouts,
+    } = ctx;
+
     let player_chunk_pos = ChunkPos::new(0, 0);
     let task_pool = AsyncComputeTaskPool::get();
     let layout = Arc::new(layouts.get(&sprite_assets.layout).unwrap().clone());
@@ -65,16 +80,6 @@ pub fn dispatch_chunk_drawing(
         spawns_left -= 1;
     }
 }
-
-// fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
-//     commands.spawn((
-//         Player,
-//         GridPosition(Vec3::default()),
-//         Sprite::from_image(asset_server.load("player/idle.png")),
-//         Transform::from_scale(Vec3::splat(0.1)),
-//         Visibility::default(),
-//     ));
-// }
 
 pub fn poll_chunk_drawing(
     mut commands: Commands,
