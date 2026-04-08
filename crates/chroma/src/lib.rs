@@ -32,6 +32,7 @@
 //! ```
 
 use glam::IVec3;
+use smallvec::SmallVec;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -48,7 +49,7 @@ impl<T: Clone + Copy + PartialEq + Default + Send + Sync + Debug + 'static> Item
 #[derive(Clone, Debug, PartialEq)]
 pub struct Section<T: Item, const W: usize, const H: usize, const D: usize> {
     data: Vec<u64>,
-    palette: Vec<T>,
+    palette: SmallVec<[T; 8]>,
     bits_per_item: u8,
 }
 
@@ -85,7 +86,7 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
         let total_bits_needed: usize = (bits_per_item as usize) * Self::VOLUME;
         let data_len: usize = total_bits_needed.div_ceil(u64::BITS as usize) + 1;
 
-        let mut palette = Vec::with_capacity(palette_len);
+        let mut palette = SmallVec::with_capacity(palette_len);
         palette.push(T::default());
 
         Self {
@@ -101,7 +102,7 @@ impl<T: Item, const W: usize, const H: usize, const D: usize> Section<T, W, H, D
     pub fn from_data(data: &[T]) -> Self {
         assert_eq!(data.len(), Self::VOLUME, "Data must match section volume");
 
-        let mut palette = Vec::new();
+        let mut palette = SmallVec::new();
         palette.push(T::default());
 
         for item in data {

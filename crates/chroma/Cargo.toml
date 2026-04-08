@@ -6,9 +6,10 @@ license = "MIT"
 description = "High-performance bit-packed voxel storage and section management for the Floralcraft engine."
 
 [dependencies]
+thiserror = "2.0"
 glam = { version = "0.30", default-features = false, features = ["std"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
-thiserror = "2.0"
+smallvec = { version = "1.15", features = ["serde"] }
 
 [features]
 default = ["serde"]
