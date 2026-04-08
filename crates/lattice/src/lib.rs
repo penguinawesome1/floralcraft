@@ -16,11 +16,10 @@
 //! memory alignment of Aether subchunks, ensuring cache-friendly fills during the
 //! world-loading phase.
 
+use aether::prelude::BlockPos;
 use fastnoise2::SafeNode;
 use glam::IVec3;
 use std::fmt::Debug;
-
-pub type BlockPos = glam::IVec3;
 
 pub trait Blocks: Send + Sync + 'static {
     type T: Clone + Copy + PartialEq + Default + Send + Sync + Debug + 'static;
@@ -34,7 +33,7 @@ pub trait Blocks: Send + Sync + 'static {
 }
 
 pub trait BlockGen<B: Blocks, const L: usize, const V: usize>: Send + Sync + 'static {
-    fn choose_blocks(&self, start_pos: IVec3, out: &mut [B::T; V]);
+    fn choose_blocks(&self, start_pos: BlockPos, out: &mut [B::T; V]);
 }
 
 use std::marker::PhantomData;
