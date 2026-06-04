@@ -1,11 +1,14 @@
+import { vec3, mat4 } from "gl-matrix";
+
 export class Camera {
-  private pos = [0, 0, 0];
+  private pos: vec3 = vec3.create();
   private pitch = 0;
   private yaw = 0;
-  private rotation: Float32Array;
+  private rotation: mat4 = mat4.create();
   private sensitivity: number;
   private speed: number;
   private _buffer: GPUBuffer;
+  private uniformData = new Float32Array(20);
 
   constructor(device: GPUDevice, sensitivity: number, speed: number) {
     this.sensitivity = sensitivity;
@@ -14,7 +17,8 @@ export class Camera {
       size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.rotation = this.buildRotation();
+
+    this.updateRotation();
   }
 
   get buffer(): GPUBuffer {
@@ -25,70 +29,52 @@ export class Camera {
     this.yaw += deltaX * this.sensitivity;
     this.pitch += deltaY * this.sensitivity;
     this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
-    this.rotation = this.buildRotation();
+    this.updateRotation();
 
-    const forward = normalize([this.rotation[6], 0, this.rotation[8]]);
-    const right = normalize([this.rotation[0], 0, this.rotation[2]]);
+    const moveDir = vec3.create();
+    const forward = this.getForward(vec3.create());
+    const right = this.getRight(vec3.create());
 
-    if (keys.has("KeyW") || keys.has("ArrowUp")) {
-      this.pos[0] += forward[0] * this.speed;
-      this.pos[1] += forward[1] * this.speed;
-      this.pos[2] += forward[2] * this.speed;
-    }
-    if (keys.has("KeyS") || keys.has("ArrowDown")) {
-      this.pos[0] -= forward[0] * this.speed;
-      this.pos[1] -= forward[1] * this.speed;
-      this.pos[2] -= forward[2] * this.speed;
-    }
-    if (keys.has("KeyA") || keys.has("ArrowLeft")) {
-      this.pos[0] -= right[0] * this.speed;
-      this.pos[1] -= right[1] * this.speed;
-      this.pos[2] -= right[2] * this.speed;
-    }
-    if (keys.has("KeyD") || keys.has("ArrowRight")) {
-      this.pos[0] += right[0] * this.speed;
-      this.pos[1] += right[1] * this.speed;
-      this.pos[2] += right[2] * this.speed;
+    if (keys.has("KeyW") || keys.has("ArrowUp"))
+      vec3.add(moveDir, moveDir, forward);
+    if (keys.has("KeyS") || keys.has("ArrowDown"))
+      vec3.sub(moveDir, moveDir, forward);
+    if (keys.has("KeyA") || keys.has("ArrowLeft"))
+      vec3.sub(moveDir, moveDir, right);
+    if (keys.has("KeyD") || keys.has("ArrowRight"))
+      vec3.add(moveDir, moveDir, right);
+
+    if (keys.has("Space")) moveDir[1] += 1;
+    if (keys.has("ShiftLeft")) moveDir[1] -= 1;
+
+    if (vec3.length(moveDir) > 0) {
+      vec3.normalize(moveDir, moveDir);
+      vec3.scaleAndAdd(this.pos, this.pos, moveDir, this.speed);
     }
 
-    if (keys.has("Space")) this.pos[1] += this.speed;
-    if (keys.has("ShiftLeft")) this.pos[1] -= this.speed;
-
-    queue.writeBuffer(this._buffer, 0, this.toUniform());
+    this.updateUniform();
+    queue.writeBuffer(this._buffer, 0, this.uniformData);
   }
 
-  toUniform(): Float32Array {
-    return new Float32Array([
-      ...this.pos,
-      0,
-      ...this.rotation.slice(0, 3),
-      0,
-      ...this.rotation.slice(3, 6),
-      0,
-      ...this.rotation.slice(6, 9),
-      0,
-    ]);
+  private updateRotation() {
+    mat4.identity(this.rotation);
+    mat4.rotateY(this.rotation, this.rotation, this.yaw);
+    mat4.rotateX(this.rotation, this.rotation, this.pitch);
   }
 
-  private buildRotation(): Float32Array {
-    const f = normalize([
-      Math.cos(this.pitch) * Math.sin(this.yaw),
-      Math.sin(this.pitch),
-      -Math.cos(this.pitch) * Math.cos(this.yaw),
-    ]);
-    const r = normalize(cross(f, [0, 1, 0]));
-    const u = cross(r, f);
-    return new Float32Array([...r, ...u, ...f]);
+  private getForward(out: vec3): vec3 {
+    vec3.set(out, this.rotation[8], 0, this.rotation[10]);
+    return vec3.normalize(out, out);
+  }
+
+  private getRight(out: vec3): vec3 {
+    vec3.set(out, this.rotation[0], 0, this.rotation[2]);
+    return vec3.normalize(out, out);
+  }
+
+  private updateUniform() {
+    this.uniformData.set(this.pos, 0);
+    this.uniformData[3] = 0; // padding
+    this.uniformData.set(this.rotation, 4);
   }
 }
-
-const cross = (a: number[], b: number[]): number[] => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
-
-const normalize = (a: number[]): number[] => {
-  const len = Math.sqrt(a[0] ** 2 + a[1] ** 2 + a[2] ** 2);
-  return a.map((v) => v / len);
-};
