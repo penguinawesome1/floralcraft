@@ -13,7 +13,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => keys.delete(e.code));
 window.addEventListener("mousemove", (e) => {
   if (document.pointerLockElement === canvas) {
-    deltaX += e.movementX;
+    deltaX -= e.movementX;
     deltaY -= e.movementY;
   }
 });

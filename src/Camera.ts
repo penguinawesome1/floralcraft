@@ -32,13 +32,13 @@ export class Camera {
     this.updateRotation();
 
     const moveDir = vec3.create();
-    const forward = this.getForward(vec3.create());
+    const backward = this.getBackward(vec3.create());
     const right = this.getRight(vec3.create());
 
     if (keys.has("KeyW") || keys.has("ArrowUp"))
-      vec3.add(moveDir, moveDir, forward);
+      vec3.sub(moveDir, moveDir, backward);
     if (keys.has("KeyS") || keys.has("ArrowDown"))
-      vec3.sub(moveDir, moveDir, forward);
+      vec3.add(moveDir, moveDir, backward);
     if (keys.has("KeyA") || keys.has("ArrowLeft"))
       vec3.sub(moveDir, moveDir, right);
     if (keys.has("KeyD") || keys.has("ArrowRight"))
@@ -62,13 +62,17 @@ export class Camera {
     mat4.rotateX(this.rotation, this.rotation, this.pitch);
   }
 
-  private getForward(out: vec3): vec3 {
-    vec3.set(out, this.rotation[8], 0, this.rotation[10]);
+  private getBackward(out: vec3): vec3 {
+    vec3.set(out, 0, 0, 1);
+    vec3.transformMat4(out, out, this.rotation);
+    out[1] = 0;
     return vec3.normalize(out, out);
   }
 
   private getRight(out: vec3): vec3 {
-    vec3.set(out, this.rotation[0], 0, this.rotation[2]);
+    vec3.set(out, 1, 0, 0);
+    vec3.transformMat4(out, out, this.rotation);
+    out[1] = 0;
     return vec3.normalize(out, out);
   }
 
