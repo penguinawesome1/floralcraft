@@ -33,6 +33,7 @@ struct StepResult {
 struct TraceResult {
     hit_pos: vec3f,
     block_id: u32,
+    last_hit_axis: u32,
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -65,13 +66,13 @@ fn px_to_dir(px: vec2u) -> vec3f {
 // ╚══════════════════════════════════════════════════════╝
 
 fn block_id(pos: vec3i) -> u32 {
-    if pos.y < 0 {
-        return 1;
-    }
-
-    // if pos.x == 0 && pos.y == 0 && pos.z == 0 {
+    // if pos.y < 0 {
     //     return 1;
     // }
+
+    if pos.x == 0 && pos.y == 0 && pos.z == 0 {
+        return 1;
+    }
 
     return 0;
 }
@@ -121,7 +122,7 @@ fn trace(ray: Ray) -> TraceResult {
 
     let bid = block_id(snapped_pos);
     if bid != 0u {
-        return TraceResult(ray.origin, bid);
+        return TraceResult(ray.origin, bid, X_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -144,10 +145,10 @@ fn trace(ray: Ray) -> TraceResult {
             continue;
         }
 
-        return TraceResult(ray.origin + ray.dir * res.t, bid);
+        return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis);
     }
 
-    return TraceResult(vec3f(0.0), 0u);
+    return TraceResult(vec3f(0.0), 0u, X_AXIS);
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -168,7 +169,13 @@ fn cs_main(@builtin(global_invocation_id) px: vec3u) {
     var color = vec4f(0.5, 0.8, 0.9, 1.0);
 
     if res.block_id != 0 {
-        color = vec4f(0.6, 0.9, 0.0, 1.0);
+        if res.last_hit_axis == X_AXIS {
+            color = vec4f(1.0, 0.0, 0.0, 1.0);
+        } else if res.last_hit_axis == Y_AXIS {
+            color = vec4f(0.0, 1.0, 0.0, 1.0);
+        } else {
+            color = vec4f(0.0, 0.0, 1.0, 1.0);
+        }
     }
 
     textureStore(t_output, px.xy, color);
