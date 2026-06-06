@@ -16,10 +16,6 @@ class GameApp {
 
   async init() {
     await this.renderer.init();
-    this.start();
-  }
-
-  private start() {
     this.loadingScreen.style.opacity = "0";
     this.loadingScreen.addEventListener(
       "transitionend",
