@@ -6,8 +6,8 @@ export class Camera {
   private pitch = 0;
   private yaw = 0;
   private rotation: mat4 = mat4.create();
-  private sensitivity: number;
-  private speed: number;
+  private readonly sensitivity: number;
+  private readonly speed: number;
   private _buffer: GPUBuffer;
   private uniformData = new Float32Array(20);
 

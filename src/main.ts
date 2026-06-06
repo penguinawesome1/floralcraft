@@ -1,30 +1,54 @@
+import "./styles.css";
 import { Renderer } from "./Renderer.ts";
 import { InputManager } from "./Input.ts";
 
-const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+class GameApp {
+  private readonly loadingScreen: HTMLDivElement;
+  private readonly inputManager: InputManager;
+  private readonly renderer: Renderer;
+  private animationFrameId = 0;
 
+  constructor(canvas: HTMLCanvasElement, loadingScreen: HTMLDivElement) {
+    this.loadingScreen = loadingScreen;
+    this.inputManager = new InputManager(canvas);
+    this.renderer = new Renderer(canvas);
+  }
+
+  async init() {
+    await this.renderer.init();
+    this.start();
+  }
+
+  private start() {
+    this.loadingScreen.style.opacity = "0";
+    this.loadingScreen.addEventListener(
+      "transitionend",
+      () => this.loadingScreen.remove(),
+      { once: true },
+    );
+    this.animationFrameId = requestAnimationFrame(this.gameLoop);
+  }
+
+  private readonly gameLoop = (_time: number) => {
+    const inputState = this.inputManager.poll();
+    this.renderer.update(inputState);
+    this.renderer.frame();
+    this.animationFrameId = requestAnimationFrame(this.gameLoop);
+  };
+
+  destroy() {
+    cancelAnimationFrame(this.animationFrameId);
+  }
+}
+
+const canvas = document.getElementById("canvas");
 const loadingScreen = document.getElementById("loading-screen");
 
-const inputManager = new InputManager(canvas);
-const renderer = new Renderer(canvas);
-await renderer.init();
-
-fadeLoadingScreen();
-requestAnimationFrame(loop);
-
-function loop() {
-  let input_state = inputManager.poll();
-  renderer.update(input_state);
-  renderer.frame();
-  requestAnimationFrame(loop);
+if (!(canvas instanceof HTMLCanvasElement)) {
+  throw new Error("Missing #canvas element");
+}
+if (!(loadingScreen instanceof HTMLDivElement)) {
+  throw new Error("Missing #loading-screen element");
 }
 
-function fadeLoadingScreen() {
-  if (!loadingScreen) return;
-
-  loadingScreen.style.opacity = "0";
-
-  setTimeout(() => {
-    loadingScreen.remove();
-  }, 500);
-}
+new GameApp(canvas, loadingScreen).init();

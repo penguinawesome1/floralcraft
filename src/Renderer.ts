@@ -5,7 +5,7 @@ import { type InputState } from "./Input.ts";
 import { vec3 } from "gl-matrix";
 
 export class Renderer {
-  private canvas: HTMLCanvasElement;
+  private readonly canvas: HTMLCanvasElement;
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
   private format!: GPUTextureFormat;
@@ -33,9 +33,10 @@ export class Renderer {
     this.camera = new Camera(this.device, 0.002, 0.1, vec3.fromValues(2, 3, 7));
 
     this.createPipelines();
-    this.resize();
 
-    window.addEventListener("resize", () => this.resize());
+    const observer = new ResizeObserver(() => this.resize());
+    observer.observe(this.canvas);
+    this.resize();
   }
 
   update(input_state: InputState) {
