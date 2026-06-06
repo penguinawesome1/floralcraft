@@ -1,6 +1,8 @@
 import raycastShader from "./shaders/raycast.wgsl?raw";
 import renderShader from "./shaders/render.wgsl?raw";
 import { Camera } from "./Camera";
+import { type InputState } from "./Input.ts";
+import { vec3 } from "gl-matrix";
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -28,7 +30,7 @@ export class Renderer {
 
     this.context = this.canvas.getContext("webgpu")!;
     this.format = navigator.gpu.getPreferredCanvasFormat();
-    this.camera = new Camera(this.device, 0.002, 0.1);
+    this.camera = new Camera(this.device, 0.002, 0.1, vec3.fromValues(2, 3, 7));
 
     this.createPipelines();
     this.resize();
@@ -36,8 +38,8 @@ export class Renderer {
     window.addEventListener("resize", () => this.resize());
   }
 
-  update(keys: Set<string>, deltaX: number, deltaY: number) {
-    this.camera.update(this.device.queue, keys, deltaX, deltaY);
+  update(input_state: InputState) {
+    this.camera.update(this.device.queue, input_state);
   }
 
   frame() {

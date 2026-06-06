@@ -1,4 +1,5 @@
 import { vec3, mat4 } from "gl-matrix";
+import type { InputState } from "./Input";
 
 export class Camera {
   private pos: vec3 = vec3.create();
@@ -10,7 +11,13 @@ export class Camera {
   private _buffer: GPUBuffer;
   private uniformData = new Float32Array(20);
 
-  constructor(device: GPUDevice, sensitivity: number, speed: number) {
+  constructor(
+    device: GPUDevice,
+    sensitivity: number,
+    speed: number,
+    initialPos: vec3 = vec3.fromValues(0, 0, 0),
+  ) {
+    vec3.copy(this.pos, initialPos);
     this.sensitivity = sensitivity;
     this.speed = speed;
     this._buffer = device.createBuffer({
@@ -25,7 +32,7 @@ export class Camera {
     return this._buffer;
   }
 
-  update(queue: GPUQueue, keys: Set<string>, deltaX: number, deltaY: number) {
+  update(queue: GPUQueue, { keys, deltaX, deltaY }: InputState) {
     this.yaw += deltaX * this.sensitivity;
     this.pitch += deltaY * this.sensitivity;
     this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
