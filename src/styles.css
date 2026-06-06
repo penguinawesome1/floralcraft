@@ -1,5 +1,5 @@
 :root {
-  --loading-wallpaper: url("./assets/loading-wallpaper.jpg");
+  --loading-wallpaper: url("./assets/loading-wallpaper.webp");
 }
 
 * {
@@ -9,7 +9,7 @@
 }
 
 #canvas {
-  background-color: oklch(70% 0.16 260);
+  background-color: oklch(30% 0.03 260);
   width: 100%;
   height: 100vh;
   display: block;
