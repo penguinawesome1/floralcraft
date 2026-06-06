@@ -1,41 +1,30 @@
 import { Renderer } from "./Renderer.ts";
+import { InputManager } from "./Input.ts";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-const keys = new Set<string>();
-let deltaX = 0;
-let deltaY = 0;
 
-window.addEventListener("keydown", (e) => {
-  if (document.pointerLockElement == canvas) {
-    keys.add(e.code);
-  }
-});
-window.addEventListener("keyup", (e) => keys.delete(e.code));
-window.addEventListener("mousemove", (e) => {
-  if (document.pointerLockElement === canvas) {
-    deltaX -= e.movementX;
-    deltaY -= e.movementY;
-  }
-});
-canvas.addEventListener("click", async () => {
-  if (document.pointerLockElement !== canvas) {
-    await canvas.requestPointerLock();
-  }
-});
-window.addEventListener("blur", () => {
-  keys.clear();
-});
+const loadingScreen = document.getElementById("loading-screen");
 
+const inputManager = new InputManager(canvas);
 const renderer = new Renderer(canvas);
 await renderer.init();
 
+fadeLoadingScreen();
+requestAnimationFrame(loop);
+
 function loop() {
-  renderer.update(keys, deltaX, deltaY);
-
-  deltaX = 0;
-  deltaY = 0;
-
+  let input_state = inputManager.poll();
+  renderer.update(input_state);
   renderer.frame();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+
+function fadeLoadingScreen() {
+  if (!loadingScreen) return;
+
+  loadingScreen.style.opacity = "0";
+
+  setTimeout(() => {
+    loadingScreen.remove();
+  }, 500);
+}
