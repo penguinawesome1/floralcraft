@@ -5,9 +5,11 @@
 const EPS = 1e-6;
 const INF = 1e30;
 const MAX_STEPS = 50u;
-const X_AXIS = 0u;
-const Y_AXIS = 1u;
-const Z_AXIS = 2u;
+const NO_AXIS = 0u;
+const X_AXIS = 1u;
+const Y_AXIS = 2u;
+const Z_AXIS = 3u;
+const PI = 3.14159;
 
 // ╔══════════════════════════════════════════════════════╗
 // ║                    STRUCTS                           ║
@@ -34,6 +36,12 @@ struct TraceResult {
     hit_pos: vec3f,
     block_id: u32,
     last_hit_axis: u32,
+}
+
+struct BlockMaterial {
+    albedo: vec3f,
+    roughness: f32,
+    metallic: f32,
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -66,15 +74,26 @@ fn px_to_dir(px: vec2u) -> vec3f {
 // ╚══════════════════════════════════════════════════════╝
 
 fn block_id(pos: vec3i) -> u32 {
-    // if pos.y < 0 {
-    //     return 1;
-    // }
+    if pos.y < 0 {
+        return 2;
+    }
 
-    if pos.x == 0 && pos.y == 0 && pos.z == 0 {
+    if pos.x == 5 && pos.y == 5 && pos.z == 5 {
         return 1;
     }
 
     return 0;
+}
+
+fn block_material(id: u32) -> BlockMaterial {
+    switch id {
+        case 1: { return BlockMaterial(vec3f(1.0, 0.08, 0.58), 0.5, 0.5); }
+        case 2: { return BlockMaterial(vec3f(0.18, 1.0, 1.0), 0.5, 0.5); }
+        case 3: { return BlockMaterial(vec3f(0.96, 0.96, 0.45), 0.5, 0.5); }
+        case 4: { return BlockMaterial(vec3f(0.96, 0.30, 0.16), 0.5, 0.5); }
+        case 5: { return BlockMaterial(vec3f(1.0, 0.5, 0.31), 0.5, 0.5); }
+        default: { return BlockMaterial(vec3f(0.5, 0.0, 1.0), 0.5, 0.5); }
+    }
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -122,7 +141,7 @@ fn trace(ray: Ray) -> TraceResult {
 
     let bid = block_id(snapped_pos);
     if bid != 0u {
-        return TraceResult(ray.origin, bid, X_AXIS);
+        return TraceResult(ray.origin, bid, NO_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -148,7 +167,79 @@ fn trace(ray: Ray) -> TraceResult {
         return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis);
     }
 
-    return TraceResult(vec3f(0.0), 0u, X_AXIS);
+    return TraceResult(vec3f(0.0), 0u, NO_AXIS);
+}
+
+fn axis_normal(axis: u32, dir: vec3f) -> vec3f {
+    let s = -sign(dir);
+    switch axis {
+        case X_AXIS: { return vec3f(s.x, 0.0, 0.0); }
+        case Y_AXIS: { return vec3f(0.0, s.y, 0.0); }
+        case Z_AXIS: { return vec3f(0.0, 0.0, s.z); }
+        default: { return -normalize(dir); }
+    }
+}
+
+// ╔══════════════════════════════════════════════════════╗
+// ║                        PBR                           ║
+// ╚══════════════════════════════════════════════════════╝
+
+fn distribution_GGX(N: vec3f, H: vec3f, roughness: f32) -> f32 {
+    let a = roughness * roughness;
+    let a2 = a * a;
+    let NdotH = max(dot(N, H), 0.0);
+    let denom = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    return a2 / (PI * denom * denom);
+}
+
+fn geometry_smith(N: vec3f, V: vec3f, L: vec3f, roughness: f32) -> f32 {
+    let r = roughness + 1.0;
+    let k = (r * r) / 8.0;
+    let NdotV = max(dot(N, V), 0.0);
+    let NdotL = max(dot(N, L), 0.0);
+    let gv = NdotV / (NdotV * (1.0 - k) + k);
+    let gl = NdotL / (NdotL * (1.0 - k) + k);
+    return gv * gl;
+}
+
+fn fresnel_schlick(V: vec3f, H: vec3f, F0: vec3f) -> vec3f {
+    let VdotH = max(dot(V, H), 0.0);
+    return F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+}
+
+fn pbr(dir: vec3f, res: TraceResult) -> vec4f {
+    let material = block_material(res.block_id);
+
+    let N = axis_normal(res.last_hit_axis, dir);
+    let V = -dir;
+    let L = normalize(vec3f(1.0, 2.0, 1.0));
+    let H = normalize(V + L);
+
+    let shadow_origin = res.hit_pos + N * EPS * 10.0;
+    let shadow_ray = Ray(shadow_origin, L);
+    let shadow_res = trace(shadow_ray);
+    let in_shadow = shadow_res.block_id != 0u;
+
+    let F0 = mix(vec3f(0.04), material.albedo, material.metallic);
+    let F = fresnel_schlick(V, H, F0);
+    let D = distribution_GGX(N, H, material.roughness);
+    let G = geometry_smith(N, V, L, material.roughness);
+
+    let NdotL = max(dot(N, L), 0.0);
+    let NdotV = max(dot(N, V), 0.0);
+
+    let specular = (D * G * F) / max(4.0 * NdotV * NdotL, EPS);
+    let kD = (1.0 - F) * (1.0 - material.metallic);
+    let diffuse = kD * material.albedo / PI;
+
+    let ambient = vec3f(0.03) * material.albedo;
+    let direct = select((diffuse + specular) * NdotL, vec3f(0.0), in_shadow);
+    let Lo = ambient + direct;
+
+    let mapped = Lo / (Lo + vec3f(1.0));
+    let out = pow(mapped, vec3f(1.0 / 2.2));
+
+    return vec4f(out, 1.0);
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -166,17 +257,26 @@ fn cs_main(@builtin(global_invocation_id) px: vec3u) {
     let ray = Ray(u_cam.pos, dir);
     let res = trace(ray);
 
-    var color = vec4f(0.5, 0.8, 0.9, 1.0);
+    let is_debug_mode = false;
 
-    if res.block_id != 0 {
-        if res.last_hit_axis == X_AXIS {
-            color = vec4f(1.0, 0.0, 0.0, 1.0);
-        } else if res.last_hit_axis == Y_AXIS {
-            color = vec4f(0.0, 1.0, 0.0, 1.0);
-        } else {
-            color = vec4f(0.0, 0.0, 1.0, 1.0);
-        }
+    if res.block_id == 0 {
+        textureStore(t_output, px.xy, vec4f(0.7, 0.75, 0.95, 1.0));
+        return;
     }
 
+    if is_debug_mode {
+        var debug_color = vec4f(0.0, 0.0, 1.0, 1.0);
+
+        if res.last_hit_axis == X_AXIS {
+            debug_color = vec4f(1.0, 0.0, 0.0, 1.0);
+        } else if res.last_hit_axis == Y_AXIS {
+            debug_color = vec4f(0.0, 1.0, 0.0, 1.0);
+        }
+
+        textureStore(t_output, px.xy, debug_color);
+        return;
+    }
+
+    let color = pbr(dir, res);
     textureStore(t_output, px.xy, color);
 }
