@@ -34,12 +34,34 @@
   opacity: 1;
   transition: opacity 0.5s ease-in;
 
-  & .content {
+  .content {
     color: oklch(90% 0 0);
     font-family: "Comfortaa", sans-serif;
     text-align: center;
     display: grid;
     gap: 0.8rem;
     margin-bottom: 2rem;
+
+    h2 {
+      font-size: 2.5rem;
+    }
+
+    p {
+      font-size: 1.2rem;
+    }
   }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulsing {
+  animation: pulse 2s ease-in-out infinite;
 }

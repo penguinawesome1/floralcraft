@@ -3,20 +3,31 @@ import { Renderer } from "./Renderer.ts";
 import { InputManager } from "./Input.ts";
 
 class GameApp {
+  private readonly canvas: HTMLCanvasElement;
   private readonly loadingScreen: HTMLDivElement;
   private readonly inputManager: InputManager;
   private readonly renderer: Renderer;
   private animationFrameId = 0;
 
   constructor(canvas: HTMLCanvasElement, loadingScreen: HTMLDivElement) {
+    this.canvas = canvas;
     this.loadingScreen = loadingScreen;
-    this.inputManager = new InputManager(canvas);
-    this.renderer = new Renderer(canvas);
+    this.inputManager = new InputManager(this.canvas);
+    this.renderer = new Renderer(this.canvas);
   }
 
   async init() {
     await this.renderer.init();
-    this.loadingScreen.style.opacity = "0";
+    const progressText = document.getElementById(
+      "progress-text",
+    ) as HTMLDivElement;
+    progressText.textContent = "Click to Start!";
+    progressText.classList.add("pulsing");
+    this.loadingScreen.style.pointerEvents = "none";
+    this.canvas.addEventListener(
+      "click",
+      () => (this.loadingScreen.style.opacity = "0"),
+    );
     this.loadingScreen.addEventListener(
       "transitionend",
       () => this.loadingScreen.remove(),
