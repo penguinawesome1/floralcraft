@@ -2,9 +2,10 @@
 // ║                    CONSTANTS                         ║
 // ╚══════════════════════════════════════════════════════╝
 
+override IS_DEBUG_MODE = false;
+override MAX_STEPS = 50u;
 const EPS = 1e-6;
 const INF = 1e30;
-const MAX_STEPS = 50u;
 const NO_AXIS = 0u;
 const X_AXIS = 1u;
 const Y_AXIS = 2u;
@@ -48,8 +49,9 @@ struct BlockMaterial {
 // ║                    BINDINGS                          ║
 // ╚══════════════════════════════════════════════════════╝
 
-@group(0) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(1) var<uniform> u_cam: Camera;
+@group(0) @binding(0) var<storage, read_write> world: World;
+@group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
+@group(1) @binding(1) var<uniform> u_cam: Camera;
 
 // ╔══════════════════════════════════════════════════════╗
 // ║                    CONVERSIONS                       ║
@@ -72,6 +74,10 @@ fn px_to_dir(px: vec2u) -> vec3f {
 // ╔══════════════════════════════════════════════════════╗
 // ║                    BLOCK ACCESS                      ║
 // ╚══════════════════════════════════════════════════════╝
+
+fn umod3(a: vec3i, b: vec3i) -> vec3i {
+    return ((a % b) + b) % b;
+}
 
 fn block_id(pos: vec3i) -> u32 {
     if pos.y < 0 {
@@ -101,31 +107,31 @@ fn block_material(id: u32) -> BlockMaterial {
 // ╚══════════════════════════════════════════════════════╝
 
 // Finds the grid boundary that first occurs along the given ray.
-fn step(curr_t_max: vec3f, current_pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResult {
+fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResult {
     var step: StepResult;
-    step.t_max = curr_t_max;
-    step.snapped_pos = current_pos;
+    step.t_max = t_max;
+    step.snapped_pos = pos;
 
-    if curr_t_max.x < curr_t_max.y {
-        if curr_t_max.x < curr_t_max.z {
-            step.t = curr_t_max.x;
+    if t_max.x < t_max.y {
+        if t_max.x < t_max.z {
+            step.t = t_max.x;
             step.t_max.x += delta_t.x;
             step.snapped_pos.x += grid_step.x;
             step.last_hit_axis = X_AXIS;
         } else {
-            step.t = curr_t_max.z;
+            step.t = t_max.z;
             step.t_max.z += delta_t.z;
             step.snapped_pos.z += grid_step.z;
             step.last_hit_axis = Z_AXIS;
         }
     } else {
-        if curr_t_max.y < curr_t_max.z {
-            step.t = curr_t_max.y;
+        if t_max.y < t_max.z {
+            step.t = t_max.y;
             step.t_max.y += delta_t.y;
             step.snapped_pos.y += grid_step.y;
             step.last_hit_axis = Y_AXIS;
         } else {
-            step.t = curr_t_max.z;
+            step.t = t_max.z;
             step.t_max.z += delta_t.z;
             step.snapped_pos.z += grid_step.z;
             step.last_hit_axis = Z_AXIS;
@@ -135,7 +141,7 @@ fn step(curr_t_max: vec3f, current_pos: vec3i, delta_t: vec3f, grid_step: vec3i)
     return step;
 }
 
-// Finds the first block the ray hits.
+// Finds the first non-air block the ray hits.
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
@@ -249,31 +255,23 @@ fn pbr(dir: vec3f, res: TraceResult) -> vec4f {
 @compute @workgroup_size(8, 8, 1)
 fn cs_main(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
-    if any(px.xy >= canvas_size) {
-        return;
-    }
+    if any(px.xy >= canvas_size) { return; }
 
     let dir = px_to_dir(px.xy);
     let ray = Ray(u_cam.pos, dir);
     let res = trace(ray);
-
-    let is_debug_mode = false;
 
     if res.block_id == 0 {
         textureStore(t_output, px.xy, vec4f(0.7, 0.75, 0.95, 1.0));
         return;
     }
 
-    if is_debug_mode {
-        var debug_color = vec4f(0.0, 0.0, 1.0, 1.0);
-
-        if res.last_hit_axis == X_AXIS {
-            debug_color = vec4f(1.0, 0.0, 0.0, 1.0);
-        } else if res.last_hit_axis == Y_AXIS {
-            debug_color = vec4f(0.0, 1.0, 0.0, 1.0);
+    if IS_DEBUG_MODE {
+        switch res.last_hit_axis {
+            case X_AXIS: { textureStore(t_output, px.xy, vec4f(1.0, 0.0, 0.0, 1.0)); }
+            case Y_AXIS: { textureStore(t_output, px.xy, vec4f(0.0, 1.0, 0.0, 1.0)); }
+            default: { textureStore(t_output, px.xy, vec4f(0.0, 0.0, 1.0, 1.0)); }
         }
-
-        textureStore(t_output, px.xy, debug_color);
         return;
     }
 

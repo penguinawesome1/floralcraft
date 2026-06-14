@@ -1,27 +1,37 @@
-import raycastShader from "./shaders/raycast.wgsl?raw";
-import renderShader from "./shaders/render.wgsl?raw";
 import { Camera } from "./Camera";
 import { type InputState } from "./Input.ts";
 import { vec3 } from "gl-matrix";
+import {
+  type BindGroupLayouts,
+  createBindGroupLayouts,
+} from "./render/BindGroupLayouts.ts";
+import {
+  type BindGroups,
+  type DynamicBindGroups,
+  createStaticBindGroups,
+} from "./render/BindGroups.ts";
+import { type Buffers, createBuffers } from "./render/Buffers.ts";
+import { type Pipelines, createPipelines } from "./render/Pipelines.ts";
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
   private format!: GPUTextureFormat;
-  private renderTarget!: GPUTexture;
-  private computePipeline!: GPUComputePipeline;
-  private renderPipeline!: GPURenderPipeline;
   private canvasSampler!: GPUSampler;
-  private renderBindGroup!: GPUBindGroup;
-  private computeBindGroup!: GPUBindGroup;
+  private renderTarget!: GPUTexture;
   private camera!: Camera;
+
+  private buffers!: Buffers;
+  private bindGroupLayouts!: BindGroupLayouts;
+  private bindGroups!: BindGroups;
+  private pipelines!: Pipelines;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
   }
 
-  async init() {
+  async init(): Promise<void> {
     if (!navigator.gpu) throw new Error("WebGPU not supported");
 
     const adapter = await navigator.gpu.requestAdapter();
@@ -30,34 +40,57 @@ export class Renderer {
 
     this.context = this.canvas.getContext("webgpu")!;
     this.format = navigator.gpu.getPreferredCanvasFormat();
+    this.canvasSampler = this.device.createSampler({
+      magFilter: "nearest",
+      minFilter: "nearest",
+      mipmapFilter: "nearest",
+    });
     this.camera = new Camera(this.device, 0.002, 0.1, vec3.fromValues(2, 3, 7));
 
-    this.createPipelines();
+    this.bindGroupLayouts = createBindGroupLayouts(this.device);
+    this.buffers = createBuffers(this.device);
+    const staticBindGroups = createStaticBindGroups(
+      this.device,
+      this.bindGroupLayouts,
+      this.buffers,
+    );
+    this.bindGroups = { ...staticBindGroups } as BindGroups;
+    this.pipelines = await createPipelines(
+      this.device,
+      this.format,
+      this.bindGroupLayouts,
+    );
 
     const observer = new ResizeObserver(() => this.resize());
     observer.observe(this.canvas);
     this.resize();
   }
 
-  update(input_state: InputState) {
-    this.camera.update(this.device.queue, input_state);
+  update(inputState: InputState): void {
+    this.camera.update(this.device.queue, inputState);
   }
 
-  frame() {
+  frame(): void {
     const commandEncoder = this.device.createCommandEncoder();
+    this.encodeRaycastPass(commandEncoder);
+    this.encodeRenderPass(commandEncoder);
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
 
-    const computePass = commandEncoder.beginComputePass();
-    computePass.setPipeline(this.computePipeline);
-    computePass.setBindGroup(0, this.computeBindGroup);
+  private encodeRaycastPass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass();
+    pass.setPipeline(this.pipelines.raycast);
+    pass.setBindGroup(0, this.bindGroups.world);
+    pass.setBindGroup(1, this.bindGroups.raycast);
+    pass.dispatchWorkgroups(
+      Math.ceil(this.canvas.width / 8),
+      Math.ceil(this.canvas.height / 8),
+    );
+    pass.end();
+  }
 
-    const workgroupCountX = Math.ceil(this.canvas.width / 8);
-    const workgroupCountY = Math.ceil(this.canvas.height / 8);
-    computePass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
-
-    computePass.end();
-
+  private encodeRenderPass(commandEncoder: GPUCommandEncoder): void {
     const canvasTextureView = this.context.getCurrentTexture().createView();
-
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -68,24 +101,22 @@ export class Renderer {
         },
       ],
     });
-
-    renderPass.setPipeline(this.renderPipeline);
-    renderPass.setBindGroup(0, this.renderBindGroup);
-
+    renderPass.setPipeline(this.pipelines.render);
+    renderPass.setBindGroup(0, this.bindGroups.render);
     renderPass.draw(3);
-
     renderPass.end();
-
-    const commandBuffer = commandEncoder.finish();
-    this.device.queue.submit([commandBuffer]);
   }
 
-  private resize() {
+  private resize(): void {
     const dpr = window.devicePixelRatio;
     const w = this.canvas.clientWidth * dpr;
     const h = this.canvas.clientHeight * dpr;
 
-    if (w == this.canvas.width && h == this.canvas.height && this.renderTarget)
+    if (
+      w === this.canvas.width &&
+      h === this.canvas.height &&
+      this.renderTarget
+    )
       return;
 
     this.canvas.width = w;
@@ -97,63 +128,40 @@ export class Renderer {
       alphaMode: "opaque",
     });
 
+    if (this.renderTarget) {
+      this.renderTarget.destroy();
+    }
+
     this.renderTarget = this.device.createTexture({
       size: [this.canvas.width, this.canvas.height],
       format: "rgba8unorm",
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
     });
 
-    this.configureViewsAndBindGroups();
+    this.bindGroups = { ...this.bindGroups, ...this.createDynamicBindGroups() };
   }
 
-  private createPipelines() {
-    const raycastShaderModule = this.device.createShaderModule({
-      code: raycastShader,
-    });
-    const renderShaderModule = this.device.createShaderModule({
-      code: renderShader,
-    });
-
-    this.computePipeline = this.device.createComputePipeline({
-      layout: "auto",
-      compute: { module: raycastShaderModule, entryPoint: "cs_main" },
-    });
-
-    this.renderPipeline = this.device.createRenderPipeline({
-      layout: "auto",
-      vertex: { module: renderShaderModule, entryPoint: "vs_main" },
-      fragment: {
-        module: renderShaderModule,
-        entryPoint: "fs_main",
-        targets: [{ format: this.format }],
-      },
-      primitive: { topology: "triangle-list" },
-    });
-
-    this.canvasSampler = this.device.createSampler({
-      magFilter: "nearest",
-      minFilter: "nearest",
-      mipmapFilter: "nearest",
-    });
-  }
-
-  private configureViewsAndBindGroups() {
+  private createDynamicBindGroups(): DynamicBindGroups {
     const renderTargetView = this.renderTarget.createView();
 
-    this.computeBindGroup = this.device.createBindGroup({
-      layout: this.computePipeline.getBindGroupLayout(0),
+    const raycast = this.device.createBindGroup({
+      label: "raycast bind group",
+      layout: this.bindGroupLayouts.raycast,
       entries: [
         { binding: 0, resource: renderTargetView },
-        { binding: 1, resource: this.camera.buffer },
+        { binding: 1, resource: { buffer: this.camera.buffer } },
       ],
     });
 
-    this.renderBindGroup = this.device.createBindGroup({
-      layout: this.renderPipeline.getBindGroupLayout(0),
+    const render = this.device.createBindGroup({
+      label: "render bind group",
+      layout: this.bindGroupLayouts.render,
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: this.canvasSampler },
       ],
     });
+
+    return { raycast, render };
   }
 }

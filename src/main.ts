@@ -17,10 +17,18 @@ class GameApp {
   }
 
   async init() {
-    await this.renderer.init();
     const progressText = document.getElementById(
       "progress-text",
     ) as HTMLDivElement;
+
+    try {
+      await this.renderer.init();
+    } catch (e) {
+      progressText.textContent =
+        e instanceof Error ? e.message : "Unknown error";
+      return;
+    }
+
     progressText.textContent = "Click to Start!";
     progressText.classList.add("pulsing");
     this.loadingScreen.style.pointerEvents = "none";
