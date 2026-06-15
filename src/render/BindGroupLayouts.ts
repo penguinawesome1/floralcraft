@@ -1,5 +1,6 @@
 export type BindGroupLayouts = {
   world: GPUBindGroupLayout;
+  atomic_world: GPUBindGroupLayout;
   raycast: GPUBindGroupLayout;
   render: GPUBindGroupLayout;
 };
@@ -7,6 +8,18 @@ export type BindGroupLayouts = {
 export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
   const world = device.createBindGroupLayout({
     label: "world bind group layout",
+    entries: [
+      // world
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
+    ],
+  });
+
+  const atomic_world = device.createBindGroupLayout({
+    label: "atomic world bind group layout",
     entries: [
       // world
       {
@@ -53,5 +66,5 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  return { world, raycast, render };
+  return { world, atomic_world, raycast, render };
 }

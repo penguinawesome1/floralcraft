@@ -49,7 +49,7 @@ struct BlockMaterial {
 // ║                    BINDINGS                          ║
 // ╚══════════════════════════════════════════════════════╝
 
-@group(0) @binding(0) var<storage, read_write> world: World;
+@group(0) @binding(0) var<storage, read> world: World;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(1) var<uniform> u_cam: Camera;
 
@@ -84,17 +84,19 @@ fn block_id(pos: vec3i) -> u32 {
         return 2;
     }
 
-    if pos.x == 5 && pos.y == 5 && pos.z == 5 {
-        return 1;
-    }
+    // if pos.x == 5 && pos.y == 5 && pos.z == 5 {
+    //     return 1;
+    // }
 
-    return 0;
+    // return 0;
+
+    return chunk_get(0, vec3u(pos));
 }
 
 fn block_material(id: u32) -> BlockMaterial {
     switch id {
-        case 1: { return BlockMaterial(vec3f(1.0, 0.08, 0.58), 0.5, 0.5); }
-        case 2: { return BlockMaterial(vec3f(0.18, 1.0, 1.0), 0.5, 0.5); }
+        case 1: { return BlockMaterial(vec3f(1.0, 0.08, 0.58), 0.5, 0.0); }
+        case 2: { return BlockMaterial(vec3f(0.18, 1.0, 1.0), 0.5, 1.0); }
         case 3: { return BlockMaterial(vec3f(0.96, 0.96, 0.45), 0.5, 0.5); }
         case 4: { return BlockMaterial(vec3f(0.96, 0.30, 0.16), 0.5, 0.5); }
         case 5: { return BlockMaterial(vec3f(1.0, 0.5, 0.31), 0.5, 0.5); }

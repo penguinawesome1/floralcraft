@@ -72,9 +72,18 @@ export class Renderer {
 
   frame(): void {
     const commandEncoder = this.device.createCommandEncoder();
+    this.encodeGenPass(commandEncoder);
     this.encodeRaycastPass(commandEncoder);
     this.encodeRenderPass(commandEncoder);
     this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  private encodeGenPass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass();
+    pass.setPipeline(this.pipelines.gen);
+    pass.setBindGroup(0, this.bindGroups.atomic_world);
+    pass.dispatchWorkgroups(1, 1, 1);
+    pass.end();
   }
 
   private encodeRaycastPass(commandEncoder: GPUCommandEncoder): void {
@@ -83,8 +92,8 @@ export class Renderer {
     pass.setBindGroup(0, this.bindGroups.world);
     pass.setBindGroup(1, this.bindGroups.raycast);
     pass.dispatchWorkgroups(
-      Math.ceil(this.canvas.width / 8),
-      Math.ceil(this.canvas.height / 8),
+      Math.ceil(this.canvas.width),
+      Math.ceil(this.canvas.height),
     );
     pass.end();
   }

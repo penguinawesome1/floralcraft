@@ -14,10 +14,10 @@ struct World {
     chunks: array<Chunk>,
 }
 
-fn _world_child_idx(pos: vec3u, depth: u32) -> u32 {
-    let bits = (pos >> vec3u(depth)) & vec3u(1u);
-    return bits.x | (bits.y << 1u) | (bits.z << 2u);
-}
+// fn _world_child_idx(pos: vec3u, depth: u32) -> u32 {
+//     let bits = (pos >> vec3u(depth)) & vec3u(1u);
+//     return bits.x | (bits.y << 1u) | (bits.z << 2u);
+// }
 
 fn world_insert(pos: vec3i) {}
 

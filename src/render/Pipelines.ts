@@ -1,11 +1,14 @@
 import chunkShader from "../shaders/data/Chunk.wgsl?raw";
+import atomicChunkShader from "../shaders/data/atomic/Chunk.wgsl?raw";
 import worldShader from "../shaders/data/World.wgsl?raw";
+import genShader from "../shaders/gen.wgsl?raw";
 import raycastShader from "../shaders/raycast.wgsl?raw";
 import renderShader from "../shaders/render.wgsl?raw";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 
 export type Pipelines = {
+  gen: GPUComputePipeline;
   raycast: GPUComputePipeline;
   render: GPURenderPipeline;
 };
@@ -15,6 +18,10 @@ export async function createPipelines(
   format: GPUTextureFormat,
   bind_group_layouts: BindGroupLayouts,
 ): Promise<Pipelines> {
+  const genModule = device.createShaderModule({
+    label: "gen shader module",
+    code: [atomicChunkShader, worldShader, genShader].join("\n"),
+  });
   const raycastModule = device.createShaderModule({
     label: "raycast shader module",
     code: [chunkShader, worldShader, raycastShader].join("\n"),
@@ -25,11 +32,19 @@ export async function createPipelines(
   });
 
   await Promise.all(
-    [raycastModule, renderModule].map(validateShader),
+    [genModule, raycastModule, renderModule].map(validateShader),
   );
 
   const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
 
+  const gen = device.createComputePipeline({
+    label: "gen pipeline",
+    layout: pipeline_layouts.gen,
+    compute: {
+      module: genModule,
+      entryPoint: "cs_main",
+    },
+  });
   const raycast = device.createComputePipeline({
     label: "raycast pipeline",
     layout: pipeline_layouts.raycast,
@@ -42,7 +57,6 @@ export async function createPipelines(
       },
     },
   });
-
   const render = device.createRenderPipeline({
     label: "render pipeline",
     layout: pipeline_layouts.render,
@@ -55,7 +69,7 @@ export async function createPipelines(
     primitive: { topology: "triangle-list" },
   });
 
-  return { raycast, render };
+  return { gen, raycast, render };
 }
 
 async function validateShader(module: GPUShaderModule) {

@@ -3,6 +3,7 @@ import type { Buffers } from "./Buffers";
 
 export type StaticBindGroups = {
   world: GPUBindGroup;
+  atomic_world: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
@@ -20,10 +21,14 @@ export function createStaticBindGroups(
   const world = device.createBindGroup({
     label: "world bind group",
     layout: layouts.world,
-    entries: [
-      { binding: 0, resource: { buffer: buffers.world } },
-    ],
+    entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 
-  return { world };
+  const atomic_world = device.createBindGroup({
+    label: "atomic world bind group",
+    layout: layouts.atomic_world,
+    entries: [{ binding: 0, resource: { buffer: buffers.world } }],
+  });
+
+  return { world, atomic_world };
 }
