@@ -11,9 +11,14 @@ const_assert 32u % BITS_PER_ID == 0u;
 
 alias Chunk = array<atomic<u32>, CHUNK_LEN>;
 
-// Finds the total bit offset of the pos within the chunk.
-fn _chunk_pos_to_offset(pos: vec3u) -> u32 {
-    return (pos.z * (CHUNK_SIDE * CHUNK_SIDE) + pos.y * CHUNK_SIDE + pos.x) * BITS_PER_ID;
+struct ChunkAddr {
+    word_idx: u32,
+    bit_idx: u32,
+}
+
+fn _chunk_pos_to_addr(pos: vec3u) -> ChunkAddr {
+    let offset = (pos.z * (CHUNK_SIDE * CHUNK_SIDE) + pos.y * CHUNK_SIDE + pos.x) * BITS_PER_ID;
+    return ChunkAddr(offset >> 5u, offset & 31u);
 }
 
 fn chunk_clear(chunk_idx: u32) {
@@ -23,19 +28,17 @@ fn chunk_clear(chunk_idx: u32) {
 }
 
 fn chunk_get(chunk_idx: u32, pos: vec3u) -> u32 {
-    let offset = _chunk_pos_to_offset(pos);
-    let word = atomicLoad(&world.chunks[chunk_idx][offset / 32u]);
-    return extractBits(word, offset % 32u, BITS_PER_ID);
+    let addr = _chunk_pos_to_addr(pos);
+    let word = atomicLoad(&world.chunks[chunk_idx][addr.word_idx]);
+    return extractBits(word, addr.bit_idx, BITS_PER_ID);
 }
 
 fn chunk_set(chunk_idx: u32, pos: vec3u, id: u32) {
-    let offset = _chunk_pos_to_offset(pos);
-    let local_idx = offset / 32u;
-    let bit_shift = offset % 32u;
-    var old_word = atomicLoad(&world.chunks[chunk_idx][local_idx]);
+    let addr = _chunk_pos_to_addr(pos);
+    var old_word = atomicLoad(&world.chunks[chunk_idx][addr.word_idx]);
     loop {
-        let new_word = insertBits(old_word, id, bit_shift, BITS_PER_ID);
-        let res = atomicCompareExchangeWeak(&world.chunks[chunk_idx][local_idx], old_word, new_word);
+        let new_word = insertBits(old_word, id, addr.bit_idx, BITS_PER_ID);
+        let res = atomicCompareExchangeWeak(&world.chunks[chunk_idx][addr.word_idx], old_word, new_word);
         if res.exchanged { break; }
         old_word = res.old_value;
     }

@@ -80,16 +80,6 @@ fn umod3(a: vec3i, b: vec3i) -> vec3i {
 }
 
 fn block_id(pos: vec3i) -> u32 {
-    if pos.y < 0 {
-        return 2;
-    }
-
-    // if pos.x == 5 && pos.y == 5 && pos.z == 5 {
-    //     return 1;
-    // }
-
-    // return 0;
-
     return chunk_get(0, vec3u(pos));
 }
 

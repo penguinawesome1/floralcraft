@@ -18,7 +18,9 @@ fn _chunk_pos_to_offset(pos: vec3u) -> u32 {
 
 fn chunk_get(chunk_idx: u32, pos: vec3u) -> u32 {
     let offset = _chunk_pos_to_offset(pos);
-    return extractBits(world.chunks[chunk_idx][offset / 32u], offset % 32u, BITS_PER_ID);
+    let word_idx = offset >> 5u;
+    let bit_idx  = offset & 31u;
+    return extractBits(world.chunks[chunk_idx][word_idx], bit_idx, BITS_PER_ID);
 }
 
 fn chunk_is_empty(chunk_idx: u32) -> bool {
