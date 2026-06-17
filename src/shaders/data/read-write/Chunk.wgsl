@@ -21,6 +21,30 @@ fn _chunk_pos_to_addr(pos: vec3u) -> ChunkAddr {
     return ChunkAddr(offset >> 5u, offset & 31u);
 }
 
+fn chunk_free_pop() -> u32 {
+    var old_free = atomicLoad(&world.chunks_free);
+    loop {
+        var new_free = atomicLoad(&world.chunks[old_free][0]);
+        new_free = select(new_free, old_free + 1u, new_free == 0u);
+        new_free = select(new_free, 0u, new_free == ZERO_IDX);
+        let res = atomicCompareExchangeWeak(&world.chunks_free, old_free, new_free);
+        if res.exchanged { break; }
+        old_free = res.old_value;
+    }
+    return old_free;
+}
+
+fn chunk_free_push(idx: u32) {
+    var old_free = atomicLoad(&world.chunks_free);
+    loop {
+        let true_old_free = select(old_free, ZERO_IDX, old_free == 0u);
+        atomicStore(&world.chunks[idx][0], true_old_free);
+        let res = atomicCompareExchangeWeak(&world.chunks_free, old_free, idx);
+        if res.exchanged { break; }
+        old_free = res.old_value;
+    }
+}
+
 fn chunk_clear(chunk_idx: u32) {
     for (var i = 0u; i < CHUNK_LEN; i++) {
         atomicStore(&world.chunks[chunk_idx][i], 0u);

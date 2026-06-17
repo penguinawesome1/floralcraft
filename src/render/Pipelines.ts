@@ -1,6 +1,7 @@
-import chunkShader from "../shaders/data/Chunk.wgsl?raw";
-import atomicChunkShader from "../shaders/data/atomic/Chunk.wgsl?raw";
-import worldShader from "../shaders/data/World.wgsl?raw";
+import readChunkShader from "../shaders/data/read/Chunk.wgsl?raw";
+import readWriteChunkShader from "../shaders/data/read-write/Chunk.wgsl?raw";
+import readWorldShader from "../shaders/data/read/World.wgsl?raw";
+import readWriteWorldShader from "../shaders/data/read-write/World.wgsl?raw";
 import genShader from "../shaders/gen.wgsl?raw";
 import raycastShader from "../shaders/raycast.wgsl?raw";
 import renderShader from "../shaders/render.wgsl?raw";
@@ -20,11 +21,11 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const genModule = device.createShaderModule({
     label: "gen shader module",
-    code: [atomicChunkShader, worldShader, genShader].join("\n"),
+    code: [readWriteChunkShader, readWriteWorldShader, genShader].join("\n"),
   });
   const raycastModule = device.createShaderModule({
     label: "raycast shader module",
-    code: [chunkShader, worldShader, raycastShader].join("\n"),
+    code: [readChunkShader, readWorldShader, raycastShader].join("\n"),
   });
   const renderModule = device.createShaderModule({
     label: "render shader module",
@@ -53,7 +54,7 @@ export async function createPipelines(
       entryPoint: "cs_main",
       constants: {
         IS_DEBUG_MODE: 0,
-        MAX_STEPS: 50,
+        MAX_DIST: 50,
       },
     },
   });

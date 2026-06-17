@@ -45,7 +45,7 @@ export class Renderer {
       minFilter: "nearest",
       mipmapFilter: "nearest",
     });
-    this.camera = new Camera(this.device, 0.002, 0.1, vec3.fromValues(2, 3, 7));
+    this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(2, 3, 7));
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.buffers = createBuffers(this.device);
@@ -82,7 +82,7 @@ export class Renderer {
     const pass = commandEncoder.beginComputePass();
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
-    pass.dispatchWorkgroups(1, 1, 1);
+    pass.dispatchWorkgroups(30, 1, 30);
     pass.end();
   }
 

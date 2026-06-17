@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════╝
 
 override IS_DEBUG_MODE = false;
-override MAX_STEPS = 50u;
+override MAX_DIST = 50.0;
 const EPS = 1e-6;
 const INF = 1e30;
 const NO_AXIS = 0u;
@@ -71,6 +71,18 @@ fn px_to_dir(px: vec2u) -> vec3f {
     return normalize(world_dir);
 }
 
+fn floor_div(a: i32, b: i32) -> i32 {
+    return a / b - i32(a % b != 0 && (a ^ b) < 0);
+}
+
+fn block_to_chunk(pos: vec3i) -> vec3i {
+    return vec3i(
+        floor_div(pos.x, i32(CHUNK_SIDE)),
+        floor_div(pos.y, i32(CHUNK_SIDE)),
+        floor_div(pos.z, i32(CHUNK_SIDE)),
+    );
+}
+
 // ╔══════════════════════════════════════════════════════╗
 // ║                    BLOCK ACCESS                      ║
 // ╚══════════════════════════════════════════════════════╝
@@ -80,7 +92,10 @@ fn umod3(a: vec3i, b: vec3i) -> vec3i {
 }
 
 fn block_id(pos: vec3i) -> u32 {
-    return chunk_get(0, vec3u(pos));
+    let chunk_pos = block_to_chunk(pos);
+    let idx = world_idx(chunk_pos);
+    if idx == WORLD_IDX_NONE { return 0u; }
+    return chunk_get(idx, vec3u(pos));
 }
 
 fn block_material(id: u32) -> BlockMaterial {
@@ -151,12 +166,16 @@ fn trace(ray: Ray) -> TraceResult {
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
     var last_hit_axis: u32;
 
-    for (var i = 0u; i < MAX_STEPS; i++) {
+    loop {
         let res = step(t_max, snapped_pos, delta_t, grid_step);
         t_max = res.t_max;
         snapped_pos = res.snapped_pos;
         last_hit_axis = res.last_hit_axis;
 
+        if res.t > MAX_DIST {
+            break;
+        }
+        
         let bid = block_id(snapped_pos);
         if bid == 0u {
             continue;
