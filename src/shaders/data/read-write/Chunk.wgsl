@@ -31,6 +31,7 @@ fn chunk_free_pop() -> u32 {
         if res.exchanged { break; }
         old_free = res.old_value;
     }
+    atomicStore(&world.chunks[old_free][0], 0u);
     return old_free;
 }
 

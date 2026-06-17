@@ -82,7 +82,7 @@ export class Renderer {
     const pass = commandEncoder.beginComputePass();
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
-    pass.dispatchWorkgroups(30, 1, 30);
+    pass.dispatchWorkgroups(50, 20, 50);
     pass.end();
   }
 

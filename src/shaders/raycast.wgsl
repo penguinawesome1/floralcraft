@@ -92,15 +92,16 @@ fn umod3(a: vec3i, b: vec3i) -> vec3i {
 }
 
 fn block_id(pos: vec3i) -> u32 {
+    if any(pos < vec3i(0)) { return 0u; }
     let chunk_pos = block_to_chunk(pos);
-    let idx = world_idx(chunk_pos);
+    let idx = world_idx(vec3u(chunk_pos));
     if idx == WORLD_IDX_NONE { return 0u; }
-    return chunk_get(idx, vec3u(pos));
+    return chunk_get(idx, vec3u(umod3(pos, vec3i(i32(CHUNK_SIDE)))));
 }
 
 fn block_material(id: u32) -> BlockMaterial {
     switch id {
-        case 1: { return BlockMaterial(vec3f(1.0, 0.08, 0.58), 0.5, 0.0); }
+        case 1: { return BlockMaterial(vec3f(1.0, 0.08, 0.58), 0.5, 1.0); }
         case 2: { return BlockMaterial(vec3f(0.18, 1.0, 1.0), 0.5, 1.0); }
         case 3: { return BlockMaterial(vec3f(0.96, 0.96, 0.45), 0.5, 0.5); }
         case 4: { return BlockMaterial(vec3f(0.96, 0.30, 0.16), 0.5, 0.5); }

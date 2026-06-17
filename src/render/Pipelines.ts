@@ -19,13 +19,20 @@ export async function createPipelines(
   format: GPUTextureFormat,
   bind_group_layouts: BindGroupLayouts,
 ): Promise<Pipelines> {
+  const SVO_DEPTH = 8;
+  const SVO_BRANCHES_CAPACITY = (Math.pow(8, SVO_DEPTH) - 1) / 7;
+  const svoConsts = `
+    const SVO_DEPTH = ${SVO_DEPTH}u;
+    const SVO_BRANCHES_CAPACITY = ${SVO_BRANCHES_CAPACITY}u;
+  `;
+
   const genModule = device.createShaderModule({
     label: "gen shader module",
-    code: [readWriteChunkShader, readWriteWorldShader, genShader].join("\n"),
+    code: [svoConsts, readWriteChunkShader, readWriteWorldShader, genShader].join("\n"),
   });
   const raycastModule = device.createShaderModule({
     label: "raycast shader module",
-    code: [readChunkShader, readWorldShader, raycastShader].join("\n"),
+    code: [svoConsts, readChunkShader, readWorldShader, raycastShader].join("\n"),
   });
   const renderModule = device.createShaderModule({
     label: "render shader module",
@@ -54,7 +61,7 @@ export async function createPipelines(
       entryPoint: "cs_main",
       constants: {
         IS_DEBUG_MODE: 0,
-        MAX_DIST: 50,
+        MAX_DIST: 100,
       },
     },
   });

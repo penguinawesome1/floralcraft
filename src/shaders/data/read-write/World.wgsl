@@ -1,6 +1,3 @@
-const SVO_DEPTH = 6u;
-const SVO_BRANCHES_CAPACITY = 37449u; // (8 ^ SVO_DEPTH - 1) / 7
-const SVO_MIDDLE_OFFSET = vec3i(i32(1u << (SVO_DEPTH - 1u)));
 const WORLD_IDX_NONE = 0xFFFFFFFFu;
 const ZERO_IDX = 0xFFFFFFFFu;
 
@@ -21,10 +18,6 @@ fn _world_child_idx(pos: vec3u, depth: u32) -> u32 {
     return bits.x | (bits.y << 1u) | (bits.z << 2u);
 }
 
-fn _world_wrapped_pos(pos: vec3i) -> vec3u {
-    return vec3u(pos + vec3i(SVO_MIDDLE_OFFSET)); // TODO: make this change based on player pos
-}
-
 fn _world_free_pop() -> u32 {
     var old_free = atomicLoad(&world.svo_branches_free);
     loop {
@@ -35,6 +28,7 @@ fn _world_free_pop() -> u32 {
         if res.exchanged { break; }
         old_free = res.old_value;
     }
+    atomicStore(&world.svo_branches[old_free], 0u);
     return old_free;
 }
 
@@ -49,27 +43,24 @@ fn _world_free_push(idx: u32) {
     }
 }
 
-fn world_idx(chunk_pos: vec3i) -> u32 {
-    let wrapped_pos = _world_wrapped_pos(chunk_pos);
+fn world_idx(pos: vec3u) -> u32 {
     var branch_idx = 0u;
     for (var i = 0u; i < SVO_DEPTH; i++) {
         let branch = atomicLoad(&world.svo_branches[branch_idx]);
-        let child_idx = _world_child_idx(wrapped_pos, SVO_DEPTH - 1u - i);
+        let child_idx = _world_child_idx(pos, SVO_DEPTH - 1u - i);
         let child_bit = 1u << (child_idx + 23u);
         if (branch & child_bit) == 0u { return WORLD_IDX_NONE; }
         branch_idx = extractBits(branch, 0u, 23u) + child_idx;
     }
-    let branch = atomicLoad(&world.svo_branches[branch_idx]);
-    return extractBits(branch, 0u, 23u);
+    return atomicLoad(&world.svo_branches[branch_idx]);
 }
 
-fn world_insert(chunk_pos: vec3i, chunk_idx: u32) {
-    let wrapped_pos = _world_wrapped_pos(chunk_pos);
+fn world_insert(pos: vec3u, chunk_idx: u32) {
     var branch_idx = 0u;
     var i = 0u;
     while i < SVO_DEPTH {
         let branch = atomicLoad(&world.svo_branches[branch_idx]);
-        let child_idx = _world_child_idx(wrapped_pos, SVO_DEPTH - 1u - i);
+        let child_idx = _world_child_idx(pos, SVO_DEPTH - 1u - i);
         let child_bit = 1u << (child_idx + 23u);
         if (branch & child_bit) != 0u {
             branch_idx = extractBits(branch, 0u, 23u) + child_idx;
@@ -99,4 +90,4 @@ fn world_insert(chunk_pos: vec3i, chunk_idx: u32) {
     atomicStore(&world.svo_branches[branch_idx], chunk_idx);
 }
 
-// fn world_remove(pos: vec3i) {}
+// fn world_remove(pos: vec3u) {}
