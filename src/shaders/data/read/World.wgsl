@@ -12,7 +12,7 @@ struct World {
     chunks: array<Chunk>,
 }
 
-fn _world_child_idx(pos: vec3u, depth: u32) -> u32 {
+fn _world_child_num(pos: vec3u, depth: u32) -> u32 {
     let bits = (pos >> vec3u(depth)) & vec3u(1u);
     return bits.x | (bits.y << 1u) | (bits.z << 2u);
 }
@@ -21,10 +21,10 @@ fn world_idx(pos: vec3u) -> u32 {
     var node_idx = 0u;
     for (var i = 0u; i < SVO_DEPTH; i++) {
         let node = world.svo_nodes[node_idx];
-        let child_idx = _world_child_idx(pos, SVO_DEPTH - 1u - i);
-        let child_bit = 1u << (child_idx + 23u);
+        let child_num = _world_child_num(pos, SVO_DEPTH - 1u - i);
+        let child_bit = 1u << (child_num + 23u);
         if (node & child_bit) == 0u { return WORLD_IDX_NONE; }
-        node_idx = extractBits(node, 0u, 23u) + child_idx;
+        node_idx = extractBits(node, 0u, 23u) + child_num;
     }
     return world.svo_nodes[node_idx];
 }
