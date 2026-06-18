@@ -20,10 +20,10 @@ export async function createPipelines(
   bind_group_layouts: BindGroupLayouts,
 ): Promise<Pipelines> {
   const SVO_DEPTH = 8;
-  const SVO_BRANCHES_CAPACITY = (Math.pow(8, SVO_DEPTH) - 1) / 7;
+  const SVO_NODES_CAPACITY = (Math.pow(8, SVO_DEPTH) - 1) / 7;
   const svoConsts = `
     const SVO_DEPTH = ${SVO_DEPTH}u;
-    const SVO_BRANCHES_CAPACITY = ${SVO_BRANCHES_CAPACITY}u;
+    const SVO_NODES_CAPACITY = ${SVO_NODES_CAPACITY}u;
   `;
 
   const genModule = device.createShaderModule({

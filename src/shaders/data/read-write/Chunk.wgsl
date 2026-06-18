@@ -21,6 +21,8 @@ fn _chunk_pos_to_addr(pos: vec3u) -> ChunkAddr {
     return ChunkAddr(offset >> 5u, offset & 31u);
 }
 
+// Removes a chunk from the free list and returns its index.
+// The chunk is not cleared.
 fn chunk_free_pop() -> u32 {
     var old_free = atomicLoad(&world.chunks_free);
     loop {
@@ -31,7 +33,6 @@ fn chunk_free_pop() -> u32 {
         if res.exchanged { break; }
         old_free = res.old_value;
     }
-    atomicStore(&world.chunks[old_free][0], 0u);
     return old_free;
 }
 
@@ -43,12 +44,6 @@ fn chunk_free_push(idx: u32) {
         let res = atomicCompareExchangeWeak(&world.chunks_free, old_free, idx);
         if res.exchanged { break; }
         old_free = res.old_value;
-    }
-}
-
-fn chunk_clear(chunk_idx: u32) {
-    for (var i = 0u; i < CHUNK_LEN; i++) {
-        atomicStore(&world.chunks[chunk_idx][i], 0u);
     }
 }
 
@@ -66,6 +61,16 @@ fn chunk_set(chunk_idx: u32, pos: vec3u, id: u32) {
         let res = atomicCompareExchangeWeak(&world.chunks[chunk_idx][addr.word_idx], old_word, new_word);
         if res.exchanged { break; }
         old_word = res.old_value;
+    }
+}
+
+fn chunk_fill(chunk_idx: u32, id: u32) {
+    var filled_word = 0u;
+    for (var slot = 0u; slot < IDS_PER_GROUP; slot++) {
+        filled_word = insertBits(filled_word, id, slot * BITS_PER_ID, BITS_PER_ID);
+    }
+    for (var i = 0u; i < CHUNK_LEN; i++) {
+        atomicStore(&world.chunks[chunk_idx][i], filled_word);
     }
 }
 
