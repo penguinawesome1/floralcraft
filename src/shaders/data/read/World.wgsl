@@ -1,4 +1,5 @@
 const WORLD_IDX_NONE = 0xFFFFFFFFu;
+const UNIFORM_BIT = 1u << 23u;
 
 struct World {
     // Marks the start index of the 8 contigious free slots.
@@ -21,8 +22,9 @@ fn world_idx(pos: vec3u) -> u32 {
     var node_idx = 0u;
     for (var i = 0u; i < SVO_DEPTH; i++) {
         let node = world.svo_nodes[node_idx];
+        if (node & UNIFORM_BIT) != 0 { return node; }
         let child_num = _world_child_num(pos, SVO_DEPTH - 1u - i);
-        let child_bit = 1u << (child_num + 23u);
+        let child_bit = 1u << (child_num + 24u);
         if (node & child_bit) == 0u { return WORLD_IDX_NONE; }
         node_idx = extractBits(node, 0u, 23u) + child_num;
     }

@@ -11,6 +11,7 @@ const X_AXIS = 1u;
 const Y_AXIS = 2u;
 const Z_AXIS = 3u;
 const PI = 3.14159;
+const CHUNK_SIDE_SHIFT: u32 = 3u; // log2(CHUNK_SIDE)
 
 // ╔══════════════════════════════════════════════════════╗
 // ║                    STRUCTS                           ║
@@ -71,16 +72,8 @@ fn px_to_dir(px: vec2u) -> vec3f {
     return normalize(world_dir);
 }
 
-fn floor_div(a: i32, b: i32) -> i32 {
-    return a / b - i32(a % b != 0 && (a ^ b) < 0);
-}
-
 fn block_to_chunk(pos: vec3i) -> vec3i {
-    return vec3i(
-        floor_div(pos.x, i32(CHUNK_SIDE)),
-        floor_div(pos.y, i32(CHUNK_SIDE)),
-        floor_div(pos.z, i32(CHUNK_SIDE)),
-    );
+    return pos >> vec3u(CHUNK_SIDE_SHIFT);
 }
 
 // ╔══════════════════════════════════════════════════════╗
@@ -91,11 +84,13 @@ fn umod3(a: vec3i, b: vec3i) -> vec3i {
     return ((a % b) + b) % b;
 }
 
-fn block_id(pos: vec3i) -> u32 {
+// Finds the block id and keeps the uniform bit, if it exists.
+fn raw_block_id(pos: vec3i) -> u32 {
     if any(pos < vec3i(0)) { return 0u; }
     let chunk_pos = block_to_chunk(pos);
     let idx = world_idx(vec3u(chunk_pos));
     if idx == WORLD_IDX_NONE { return 0u; }
+    if (idx & UNIFORM_BIT) != 0 { return idx; }
     return chunk_get(idx, vec3u(umod3(pos, vec3i(i32(CHUNK_SIDE)))));
 }
 
@@ -153,7 +148,8 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
-    let bid = block_id(snapped_pos);
+    let raw_bid = raw_block_id(snapped_pos);
+    let bid = extractBits(raw_bid, 0u, 23u);
     if bid != 0u {
         return TraceResult(ray.origin, bid, NO_AXIS);
     }
@@ -173,16 +169,25 @@ fn trace(ray: Ray) -> TraceResult {
         snapped_pos = res.snapped_pos;
         last_hit_axis = res.last_hit_axis;
 
-        if res.t > MAX_DIST {
-            break;
-        }
+        if res.t > MAX_DIST { break; }
         
-        let bid = block_id(snapped_pos);
-        if bid == 0u {
-            continue;
-        }
-
-        return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis);
+        let raw_bid = raw_block_id(snapped_pos);
+        let bid = extractBits(raw_bid, 0u, 23u);
+        if bid != 0u { return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis); }
+        if (raw_bid & UNIFORM_BIT) == 0u { continue; }
+        
+        let chunk_local = umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
+        let to_edge = select(
+            chunk_local + vec3i(1),
+            vec3i(i32(CHUNK_SIDE)) - chunk_local,
+            grid_step > vec3i(0)
+        );
+        let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
+        let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
+        let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
+        
+        snapped_pos += steps * grid_step;
+        t_max += vec3f(steps) * delta_t;
     }
 
     return TraceResult(vec3f(0.0), 0u, NO_AXIS);

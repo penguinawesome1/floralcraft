@@ -1,6 +1,8 @@
 const WORLD_IDX_NONE = 0xFFFFFFFFu;
+const IS_NOT_UNIFORM = 0xFFFFFFFFu;
 const ERR_NO_BASE = 0xFFFFFFFEu;
 const ERR_FAILED_CAS = 0xFFFFFFFDu;
+const ADDED_UNIFORM = 0xFFFFFFFCu;
 const ZERO_IDX = 0xFFFFFFFFu;
 const UNIFORM_BIT = 1u << 23u;
 
@@ -47,7 +49,7 @@ fn _world_free_push(idx: u32) {
 }
 
 fn _world_child_bit(child_num: u32) -> u32 {
-    return 1u << (child_num + 23u);
+    return 1u << (child_num + 24u);
 }
 
 fn _world_child_idx(node: u32, child_num: u32) -> u32 {
@@ -56,10 +58,28 @@ fn _world_child_idx(node: u32, child_num: u32) -> u32 {
     return select(WORLD_IDX_NONE, child_idx, is_child_present);
 }
 
-fn _world_add_child(node: u32, node_idx: u32, child_num: u32) -> u32 {
+fn _world_try_collapse(uniform_opt: u32, base_idx: u32, child_num: u32, parent_node_idx: u32) -> bool {
+    if uniform_opt == IS_NOT_UNIFORM { return false; }
+    let expected = uniform_opt | UNIFORM_BIT;
+    var acc = 0u;
+    for (var i = 0u; i < 8u; i++) {
+        if i == child_num { continue; }
+        acc |= atomicLoad(&world.svo_nodes[base_idx + i]) ^ expected;
+    }
+    if acc != 0u { return false; }
+    for (var i = 0u; i < 8u; i++) {
+        if i == child_num { continue; }
+        _world_free_push(base_idx + i);
+    }
+    atomicStore(&world.svo_nodes[parent_node_idx], uniform_opt | UNIFORM_BIT);
+    return true;
+}
+
+fn _world_add_child(node: u32, node_idx: u32, child_num: u32, uniform_opt: u32, parent_node_idx: u32) -> u32 {
     let child_bit = _world_child_bit(child_num);
     let base_idx = extractBits(node, 0u, 23u);
     if base_idx == 0u { return ERR_NO_BASE; }
+    if _world_try_collapse(uniform_opt, base_idx, child_num, parent_node_idx) { return ADDED_UNIFORM; }
     let res = atomicCompareExchangeWeak(&world.svo_nodes[node_idx], node, node | child_bit);
     if res.exchanged { return base_idx + child_num; }
     return ERR_FAILED_CAS;
@@ -79,6 +99,7 @@ fn world_idx(pos: vec3u) -> u32 {
     var node_idx = 0u;
     for (var i = 0u; i < SVO_DEPTH; i++) {
         let node = atomicLoad(&world.svo_nodes[node_idx]);
+        if (node & UNIFORM_BIT) != 0 { return node; }
         let child_num = _world_child_num(pos, SVO_DEPTH - 1u - i);
         let child_idx = _world_child_idx(node, child_num);
         if child_idx == WORLD_IDX_NONE { return WORLD_IDX_NONE; }
@@ -88,19 +109,28 @@ fn world_idx(pos: vec3u) -> u32 {
 }
 
 fn world_insert(pos: vec3u, chunk_idx: u32) {
+    let is_uniform = chunk_is_uniform(chunk_idx);
+    let uniform_opt = select(IS_NOT_UNIFORM, chunk_get(chunk_idx, vec3u(0, 0, 0)), is_uniform);
+    var parent_node_idx = 0u;
     var node_idx = 0u;
     var i = 0u;
     while i < SVO_DEPTH {
         let node = atomicLoad(&world.svo_nodes[node_idx]);
         let child_num = _world_child_num(pos, SVO_DEPTH - 1u - i);
         var child_idx = _world_child_idx(node, child_num);
-        if child_idx == WORLD_IDX_NONE { child_idx = _world_add_child(node, node_idx, child_num); }
+        if child_idx == WORLD_IDX_NONE { child_idx = _world_add_child(node, node_idx, child_num, uniform_opt, parent_node_idx); }
+        if child_idx == ADDED_UNIFORM {
+            chunk_free_push(chunk_idx);
+            return;
+        }
         if child_idx == ERR_NO_BASE { child_idx = _world_alloc_children(node, node_idx, child_num); }
         if child_idx == ERR_FAILED_CAS { continue; }
+        parent_node_idx = node_idx;
         node_idx = child_idx;
         i++;
     }
-    atomicStore(&world.svo_nodes[node_idx], chunk_idx);
+    let val = select(chunk_idx, uniform_opt | UNIFORM_BIT, is_uniform);
+    atomicStore(&world.svo_nodes[node_idx], val);
 }
 
 // fn world_remove(pos: vec3u) {}

@@ -13,8 +13,12 @@ import {
 import { type Buffers, createBuffers } from "./render/Buffers.ts";
 import { type Pipelines, createPipelines } from "./render/Pipelines.ts";
 
+const RING_SIZE = 10;
+const RESIZE_DEBOUNCE_MS = 150;
+
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
+  private resizeDebounce: ReturnType<typeof setTimeout> | undefined;
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
   private format!: GPUTextureFormat;
@@ -27,6 +31,14 @@ export class Renderer {
   private bindGroups!: BindGroups;
   private pipelines!: Pipelines;
 
+  private frameCount = 0;
+  private isProfilingMode = false;
+  private querySets: GPUQuerySet[] = [];
+  private queryBuffers: GPUBuffer[] = [];
+  private readBuffers: GPUBuffer[] = [];
+  private slotFences: (Promise<void> | null)[] = [];
+  private slotBusy: boolean[] = [];
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
   }
@@ -36,7 +48,11 @@ export class Renderer {
 
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error("No GPU adapter found");
-    this.device = await adapter.requestDevice();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    this.isProfilingMode = urlParams.has('profile') && adapter.features.has('timestamp-query');
+    const requiredFeatures: GPUFeatureName[] = this.isProfilingMode ? ['timestamp-query'] : [];
+    this.device = await adapter.requestDevice({ requiredFeatures });
 
     this.context = this.canvas.getContext("webgpu")!;
     this.format = navigator.gpu.getPreferredCanvasFormat();
@@ -60,8 +76,12 @@ export class Renderer {
       this.format,
       this.bindGroupLayouts,
     );
+    this.createProfilingResources();
 
-    const observer = new ResizeObserver(() => this.resize());
+    const observer = new ResizeObserver(() => {
+      clearTimeout(this.resizeDebounce);
+      this.resizeDebounce = setTimeout(() => this.resize(), RESIZE_DEBOUNCE_MS);
+    });
     observer.observe(this.canvas);
     this.resize();
   }
@@ -71,36 +91,126 @@ export class Renderer {
   }
 
   frame(): void {
+    const ringIdx = this.frameCount % RING_SIZE;
+    const slotAvailable = this.isProfilingMode && !this.slotBusy[ringIdx];
+    if (this.isProfilingMode && !slotAvailable)
+      console.warn(`Profiling slot ${ringIdx} still busy, skipping timestamp capture this frame`);
+    const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
+
     const commandEncoder = this.device.createCommandEncoder();
-    this.encodeGenPass(commandEncoder);
-    this.encodeRaycastPass(commandEncoder);
-    this.encodeRenderPass(commandEncoder);
+    this.encodeGenPass(commandEncoder, qSet);
+    this.encodeRaycastPass(commandEncoder, qSet);
+    this.encodeRenderPass(commandEncoder, qSet);
+
+    if (qSet) {
+      const qBuf = this.queryBuffers[ringIdx];
+      const rBuf = this.readBuffers[ringIdx];
+      commandEncoder.resolveQuerySet(qSet, 0, 6, qBuf, 0);
+      commandEncoder.copyBufferToBuffer(qBuf, 0, rBuf, 0, 48);
+    }
+
     this.device.queue.submit([commandEncoder.finish()]);
+
+    if (qSet) {
+      this.slotBusy[ringIdx] = true;
+      this.readTimestamps(ringIdx)
+        .catch((err) => console.error(`Profiling readback failed for slot ${ringIdx}:`, err))
+        .finally(() => { this.slotBusy[ringIdx] = false; });
+    }
+
+    this.frameCount++;
   }
 
-  private encodeGenPass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass();
+  private async readTimestamps(idx: number): Promise<void> {
+    if (!this.isProfilingMode) return;
+
+    const currentPromise = this.slotFences[idx];
+
+    await this.device.queue.onSubmittedWorkDone();
+
+    const rBuf = this.readBuffers[idx];
+    await rBuf.mapAsync(GPUMapMode.READ);
+
+    const arrayBuffer = rBuf.getMappedRange();
+    const timestamps = new BigInt64Array(arrayBuffer.slice(0));
+    rBuf.unmap();
+
+    const genMilliseconds = Number(timestamps[1] - timestamps[0]) / 1_000_000;
+    const raycastMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
+    const renderMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
+
+    if (this.slotFences[idx] === currentPromise) this.slotFences[idx] = null;
+
+    console.log(`
+       Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
+       Raycast Pass: ${raycastMilliseconds.toFixed(4)} ms\n
+       Render Pass: ${renderMilliseconds.toFixed(4)} ms
+     `);
+  }
+
+  private createProfilingResources() {
+    if (!this.isProfilingMode) return;
+
+    const capacity = 6;
+
+    for (let i = 0; i < RING_SIZE; i++) {
+      this.querySets.push(this.device.createQuerySet({ type: "timestamp", count: capacity }));
+      this.queryBuffers.push(this.device.createBuffer({
+        size: 8 * capacity,
+        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC
+      }));
+      this.readBuffers.push(this.device.createBuffer({
+        size: 8 * capacity,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+      }));
+      this.slotFences.push(null);
+      this.slotBusy.push(false);
+    }
+  }
+
+  private encodeGenPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
+    const pass = commandEncoder.beginComputePass({
+      label: "gen pass",
+      timestampWrites: this.isProfilingMode && querySet ? {
+        querySet,
+        beginningOfPassWriteIndex: 0,
+        endOfPassWriteIndex: 1,
+      } : undefined
+    });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
     pass.dispatchWorkgroups(50, 20, 50);
     pass.end();
   }
 
-  private encodeRaycastPass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass();
+  private encodeRaycastPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
+    const pass = commandEncoder.beginComputePass({
+      label: "raycast pass",
+      timestampWrites: this.isProfilingMode && querySet ? {
+        querySet,
+        beginningOfPassWriteIndex: 2,
+        endOfPassWriteIndex: 3
+      } : undefined
+    });
     pass.setPipeline(this.pipelines.raycast);
     pass.setBindGroup(0, this.bindGroups.world);
     pass.setBindGroup(1, this.bindGroups.raycast);
     pass.dispatchWorkgroups(
-      Math.ceil(this.canvas.width),
-      Math.ceil(this.canvas.height),
+      Math.ceil(this.canvas.width / 8),
+      Math.ceil(this.canvas.height / 8),
     );
     pass.end();
   }
 
-  private encodeRenderPass(commandEncoder: GPUCommandEncoder): void {
+  private encodeRenderPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
     const canvasTextureView = this.context.getCurrentTexture().createView();
     const renderPass = commandEncoder.beginRenderPass({
+      label: "render pass",
+      timestampWrites: this.isProfilingMode && querySet ? {
+        querySet,
+        beginningOfPassWriteIndex: 4,
+        endOfPassWriteIndex: 5,
+      } : undefined,
       colorAttachments: [
         {
           view: canvasTextureView,
@@ -137,9 +247,7 @@ export class Renderer {
       alphaMode: "opaque",
     });
 
-    if (this.renderTarget) {
-      this.renderTarget.destroy();
-    }
+    if (this.renderTarget) this.renderTarget.destroy();
 
     this.renderTarget = this.device.createTexture({
       size: [this.canvas.width, this.canvas.height],
