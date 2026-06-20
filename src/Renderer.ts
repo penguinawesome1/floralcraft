@@ -14,7 +14,7 @@ import { type Buffers, createBuffers } from "./render/Buffers.ts";
 import { type Pipelines, createPipelines } from "./render/Pipelines.ts";
 
 const RING_SIZE = 10;
-const RESIZE_DEBOUNCE_MS = 150;
+const RESIZE_DEBOUNCE_MS = 100;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
@@ -32,6 +32,7 @@ export class Renderer {
   private pipelines!: Pipelines;
 
   private frameCount = 0;
+  private isDebugMode = false;
   private isProfilingMode = false;
   private querySets: GPUQuerySet[] = [];
   private queryBuffers: GPUBuffer[] = [];
@@ -49,8 +50,9 @@ export class Renderer {
     if (!adapter) throw new Error("No GPU adapter found");
 
     const urlParams = new URLSearchParams(window.location.search);
-    this.isProfilingMode = urlParams.has('profile') && adapter.features.has('timestamp-query');
-    const requiredFeatures: GPUFeatureName[] = this.isProfilingMode ? ['timestamp-query'] : [];
+    this.isDebugMode = urlParams.has("debug");
+    this.isProfilingMode = urlParams.has("profile") && adapter.features.has("timestamp-query");
+    const requiredFeatures: GPUFeatureName[] = this.isProfilingMode ? ["timestamp-query"] : [];
     this.device = await adapter.requestDevice({ requiredFeatures });
 
     this.context = this.canvas.getContext("webgpu")!;
@@ -74,6 +76,7 @@ export class Renderer {
       this.device,
       this.format,
       this.bindGroupLayouts,
+      this.isDebugMode,
     );
     this.createProfilingResources();
 
@@ -147,7 +150,6 @@ export class Renderer {
     if (!this.isProfilingMode) return;
 
     const capacity = 6;
-
     for (let i = 0; i < RING_SIZE; i++) {
       this.querySets.push(this.device.createQuerySet({ type: "timestamp", count: capacity }));
       this.queryBuffers.push(this.device.createBuffer({

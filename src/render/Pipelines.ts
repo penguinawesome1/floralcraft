@@ -18,6 +18,7 @@ export async function createPipelines(
   device: GPUDevice,
   format: GPUTextureFormat,
   bind_group_layouts: BindGroupLayouts,
+  is_debug_mode: boolean,
 ): Promise<Pipelines> {
   const SVO_DEPTH = 8;
   const SVO_NODES_CAPACITY = (Math.pow(8, SVO_DEPTH) - 1) / 7;
@@ -60,7 +61,7 @@ export async function createPipelines(
       module: raycastModule,
       entryPoint: "cs_main",
       constants: {
-        IS_DEBUG_MODE: 0,
+        IS_DEBUG_MODE: is_debug_mode ? 1 : 0,
         MAX_DIST: 100,
       },
     },
