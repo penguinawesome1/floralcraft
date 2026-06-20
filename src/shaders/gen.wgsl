@@ -1,3 +1,5 @@
+#include "./data/read-write/World.wgsl"
+
 @group(0) @binding(0) var<storage, read_write> world: World;
 
 fn hash(p: vec2u) -> f32 {

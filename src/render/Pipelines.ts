@@ -1,10 +1,6 @@
-import readChunkShader from "../shaders/data/read/Chunk.wgsl?raw";
-import readWriteChunkShader from "../shaders/data/read-write/Chunk.wgsl?raw";
-import readWorldShader from "../shaders/data/read/World.wgsl?raw";
-import readWriteWorldShader from "../shaders/data/read-write/World.wgsl?raw";
-import genShader from "../shaders/gen.wgsl?raw";
-import raycastShader from "../shaders/raycast.wgsl?raw";
-import renderShader from "../shaders/render.wgsl?raw";
+import genShader from "../shaders/gen.wgsl";
+import raycastShader from "../shaders/raycast.wgsl";
+import renderShader from "../shaders/render.wgsl";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 
@@ -20,20 +16,13 @@ export async function createPipelines(
   bind_group_layouts: BindGroupLayouts,
   is_debug_mode: boolean,
 ): Promise<Pipelines> {
-  const SVO_DEPTH = 8;
-  const SVO_NODES_CAPACITY = (Math.pow(8, SVO_DEPTH) - 1) / 7;
-  const svoConsts = `
-    const SVO_DEPTH = ${SVO_DEPTH}u;
-    const SVO_NODES_CAPACITY = ${SVO_NODES_CAPACITY}u;
-  `;
-
   const genModule = device.createShaderModule({
     label: "gen shader module",
-    code: [svoConsts, readWriteChunkShader, readWriteWorldShader, genShader].join("\n"),
+    code: genShader,
   });
   const raycastModule = device.createShaderModule({
     label: "raycast shader module",
-    code: [svoConsts, readChunkShader, readWorldShader, raycastShader].join("\n"),
+    code: raycastShader,
   });
   const renderModule = device.createShaderModule({
     label: "render shader module",

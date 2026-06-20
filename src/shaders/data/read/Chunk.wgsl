@@ -19,7 +19,7 @@ fn _chunk_pos_to_offset(pos: vec3u) -> u32 {
 fn chunk_get(chunk_idx: u32, pos: vec3u) -> u32 {
     let offset = _chunk_pos_to_offset(pos);
     let word_idx = offset >> 5u;
-    let bit_idx  = offset & 31u;
+    let bit_idx = offset & 31u;
     return extractBits(world.chunks[chunk_idx][word_idx], bit_idx, BITS_PER_ID);
 }
 

@@ -1,3 +1,7 @@
+#include "./Chunk.wgsl"
+
+const SVO_DEPTH = 8;
+const SVO_NODES_CAPACITY = 2396745u; // (SVO_DEPTH ^ 8 - 1) / 7
 const WORLD_IDX_NONE = 0xFFFFFFFFu;
 const IS_NOT_UNIFORM = 0xFFFFFFFFu;
 const ERR_NO_BASE = 0xFFFFFFFEu;

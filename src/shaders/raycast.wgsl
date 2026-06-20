@@ -1,3 +1,5 @@
+#include "./data/read/World.wgsl"
+
 // ╔══════════════════════════════════════════════════════╗
 // ║                    CONSTANTS                         ║
 // ╚══════════════════════════════════════════════════════╝
@@ -91,7 +93,8 @@ fn raw_block_id(pos: vec3i) -> u32 {
     let idx = world_idx(vec3u(chunk_pos));
     if idx == WORLD_IDX_NONE { return 0u; }
     if (idx & UNIFORM_BIT) != 0 { return idx; }
-    return chunk_get(idx, vec3u(umod3(pos, vec3i(i32(CHUNK_SIDE)))));
+    let local_pos = vec3u(umod3(pos, vec3i(i32(CHUNK_SIDE))));
+    return chunk_get(idx, local_pos);
 }
 
 fn block_material(id: u32) -> BlockMaterial {
@@ -114,7 +117,6 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
     var step: StepResult;
     step.t_max = t_max;
     step.snapped_pos = pos;
-
     if t_max.x < t_max.y {
         if t_max.x < t_max.z {
             step.t = t_max.x;
@@ -140,7 +142,6 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
             step.last_hit_axis = Z_AXIS;
         }
     }
-
     return step;
 }
 
@@ -170,12 +171,12 @@ fn trace(ray: Ray) -> TraceResult {
         last_hit_axis = res.last_hit_axis;
 
         if res.t > MAX_DIST { break; }
-        
+
         let raw_bid = raw_block_id(snapped_pos);
         let bid = extractBits(raw_bid, 0u, 23u);
         if bid != 0u { return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis); }
         if (raw_bid & UNIFORM_BIT) == 0u { continue; }
-        
+
         let chunk_local = umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
         let to_edge = select(
             chunk_local + vec3i(1),
@@ -185,7 +186,7 @@ fn trace(ray: Ray) -> TraceResult {
         let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
         let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
         let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
-        
+
         snapped_pos += steps * grid_step;
         t_max += vec3f(steps) * delta_t;
     }
