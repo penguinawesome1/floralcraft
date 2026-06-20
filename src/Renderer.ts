@@ -36,7 +36,6 @@ export class Renderer {
   private querySets: GPUQuerySet[] = [];
   private queryBuffers: GPUBuffer[] = [];
   private readBuffers: GPUBuffer[] = [];
-  private slotFences: (Promise<void> | null)[] = [];
   private slotBusy: boolean[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -124,8 +123,6 @@ export class Renderer {
   private async readTimestamps(idx: number): Promise<void> {
     if (!this.isProfilingMode) return;
 
-    const currentPromise = this.slotFences[idx];
-
     await this.device.queue.onSubmittedWorkDone();
 
     const rBuf = this.readBuffers[idx];
@@ -138,8 +135,6 @@ export class Renderer {
     const genMilliseconds = Number(timestamps[1] - timestamps[0]) / 1_000_000;
     const raycastMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
     const renderMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
-
-    if (this.slotFences[idx] === currentPromise) this.slotFences[idx] = null;
 
     console.log(`
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
@@ -163,7 +158,6 @@ export class Renderer {
         size: 8 * capacity,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
       }));
-      this.slotFences.push(null);
       this.slotBusy.push(false);
     }
   }
