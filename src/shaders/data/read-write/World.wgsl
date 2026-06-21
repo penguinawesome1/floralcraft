@@ -70,10 +70,7 @@ fn _world__try_collapse(uniform_opt: u32, base_idx: u32, child_num: u32, parent_
         acc |= atomicLoad(&g_world.svo_nodes[base_idx + i]) ^ expected;
     }
     if acc != 0u { return false; }
-    for (var i = 0u; i < 8u; i++) {
-        if i == child_num { continue; }
-        _world__free_push(base_idx + i);
-    }
+    _world__free_push(base_idx);
     atomicStore(&g_world.svo_nodes[parent_node_idx], uniform_opt | world__UNIFORM_BIT);
     return true;
 }
@@ -91,6 +88,11 @@ fn _world__add_child(node: u32, node_idx: u32, child_num: u32, uniform_opt: u32,
 fn _world__alloc_children(node: u32, node_idx: u32, child_num: u32) -> u32 {
     let child_bit = _world__child_bit(child_num);
     let base_idx = _world__free_pop();
+
+    for (var i = 1u; i < 8u; i++) {
+        atomicStore(&g_world.svo_nodes[base_idx + i], 0u);
+    }
+
     let new_val = insertBits(node, base_idx, 0u, 23u) | child_bit;
     let res = atomicCompareExchangeWeak(&g_world.svo_nodes[node_idx], node, new_val);
     if res.exchanged { return base_idx + child_num; }
