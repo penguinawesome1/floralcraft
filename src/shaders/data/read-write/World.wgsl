@@ -61,7 +61,7 @@ fn _world__child_idx(node: u32, child_num: u32) -> u32 {
     return select(world__IDX_NONE, child_idx, is_child_present);
 }
 
-fn _world__try_collapse(uniform_opt: u32, base_idx: u32, child_num: u32, parent_node_idx: u32) -> bool {
+fn _world__try_collapse(uniform_opt: u32, node_idx: u32, base_idx: u32, child_num: u32) -> bool {
     if uniform_opt == world__IS_NOT_UNIFORM { return false; }
     let expected = uniform_opt | world__UNIFORM_BIT;
     var acc = 0u;
@@ -71,15 +71,15 @@ fn _world__try_collapse(uniform_opt: u32, base_idx: u32, child_num: u32, parent_
     }
     if acc != 0u { return false; }
     _world__free_push(base_idx);
-    atomicStore(&g_world.svo_nodes[parent_node_idx], uniform_opt | world__UNIFORM_BIT);
+    atomicStore(&g_world.svo_nodes[node_idx], uniform_opt | world__UNIFORM_BIT);
     return true;
 }
 
-fn _world__add_child(node: u32, node_idx: u32, child_num: u32, uniform_opt: u32, parent_node_idx: u32) -> u32 {
+fn _world__add_child(node: u32, node_idx: u32, child_num: u32, uniform_opt: u32) -> u32 {
     let child_bit = _world__child_bit(child_num);
     let base_idx = extractBits(node, 0u, 23u);
     if base_idx == 0u { return _world__NO_BASE; }
-    if _world__try_collapse(uniform_opt, base_idx, child_num, parent_node_idx) { return _world__ADDED_UNIFORM; }
+    if _world__try_collapse(uniform_opt, node_idx, base_idx, child_num) { return _world__ADDED_UNIFORM; }
     let res = atomicCompareExchangeWeak(&g_world.svo_nodes[node_idx], node, node | child_bit);
     if res.exchanged { return base_idx + child_num; }
     return _world__FAILED_CAS;
@@ -116,21 +116,19 @@ fn world__idx(pos: vec3u) -> u32 {
 fn world__insert(pos: vec3u, chunk_idx: u32) {
     let is_uniform = chunk__is_uniform(chunk_idx);
     let uniform_opt = select(world__IS_NOT_UNIFORM, chunk__get(chunk_idx, vec3u(0, 0, 0)), is_uniform);
-    var parent_node_idx = 0u;
     var node_idx = 0u;
     var i = 0u;
     while i < config__SVO_DEPTH {
         let node = atomicLoad(&g_world.svo_nodes[node_idx]);
         let child_num = _world__child_num(pos, config__SVO_DEPTH - 1u - i);
         var child_idx = _world__child_idx(node, child_num);
-        if child_idx == world__IDX_NONE { child_idx = _world__add_child(node, node_idx, child_num, uniform_opt, parent_node_idx); }
+        if child_idx == world__IDX_NONE { child_idx = _world__add_child(node, node_idx, child_num, uniform_opt); }
         if child_idx == _world__ADDED_UNIFORM {
             chunk__free_push(chunk_idx);
             return;
         }
         if child_idx == _world__NO_BASE { child_idx = _world__alloc_children(node, node_idx, child_num); }
         if child_idx == _world__FAILED_CAS { continue; }
-        parent_node_idx = node_idx;
         node_idx = child_idx;
         i++;
     }

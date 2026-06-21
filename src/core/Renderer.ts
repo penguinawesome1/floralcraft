@@ -203,7 +203,7 @@ export class Renderer {
     });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
-    pass.dispatchWorkgroups(10, 10, 10);
+    pass.dispatchWorkgroups(5, 5, 5);
     pass.end();
   }
 
