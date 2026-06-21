@@ -18,7 +18,7 @@ struct world__World {
     // C: The address of children or the uniform value if present.
     svo_nodes: array<atomic<u32>, config__SVO_NODES_CAPACITY>,
     chunks_free: atomic<u32>,
-    chunks: array<chunk__Chunk>,
+    chunks: array<chunk__Chunk, config__CHUNKS_CAPACITY>,
 }
 
 fn _world__child_num(pos: vec3u, depth: u32) -> u32 {
