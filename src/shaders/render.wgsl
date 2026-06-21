@@ -3,8 +3,8 @@ struct VertexOutput {
     @location(0) uv: vec2f,
 }
 
-@group(0) @binding(0) var t_canvas: texture_2d<f32>;
-@group(0) @binding(1) var s_canvas: sampler;
+@group(0) @binding(0) var g_t_canvas: texture_2d<f32>;
+@group(0) @binding(1) var g_s_canvas: sampler;
 
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
@@ -22,5 +22,5 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    return textureSample(t_canvas, s_canvas, in.uv);
+    return textureSample(g_t_canvas, g_s_canvas, in.uv);
 }

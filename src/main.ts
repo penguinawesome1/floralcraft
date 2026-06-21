@@ -1,6 +1,6 @@
 import "./styles.css";
-import { Renderer } from "./Renderer.ts";
-import { InputManager } from "./Input.ts";
+import { Renderer } from "./core/Renderer.ts";
+import { InputManager } from "./core/Input.ts";
 
 class GameApp {
   private readonly canvas: HTMLCanvasElement;

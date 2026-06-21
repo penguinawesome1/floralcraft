@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import glsl from 'vite-plugin-glsl';
+import glsl from "vite-plugin-glsl";
 
 export default defineConfig(({ mode }) => ({
   base: "/floralcraft/",
@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
       include: ["**/*.wgsl"],
       watch: true,
       minify: mode === "production",
-    })
-  ]
+      removeDuplicatedImports: true,
+    }),
+  ],
 }));

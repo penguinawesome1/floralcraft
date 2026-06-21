@@ -21,6 +21,7 @@ export class Camera {
     this.sensitivity = sensitivity;
     this.speed = speed;
     this._buffer = device.createBuffer({
+      label: "camera buffer",
       size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });

@@ -1,6 +1,8 @@
+#include "./config.wgsl"
+#include "./data/read-write/Chunk.wgsl"
 #include "./data/read-write/World.wgsl"
 
-@group(0) @binding(0) var<storage, read_write> world: World;
+@group(0) @binding(0) var<storage, read_write> g_world: world__World;
 
 fn hash(p: vec2u) -> f32 {
     let p_f = vec2f(p);
@@ -19,18 +21,18 @@ fn noise(p: vec2u) -> f32 {
 
 @compute @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) chunk_pos: vec3u) {
-    if world_idx(chunk_pos) != WORLD_IDX_NONE { return; }
-    let chunk_idx = chunk_free_pop();
-    let origin_pos = chunk_pos * CHUNK_SIDE;
+    if world__idx(chunk_pos) != world__IDX_NONE { return; }
+    let chunk_idx = chunk__free_pop();
+    let origin_pos = chunk_pos * chunk__CHUNK_SIDE;
     for (var i = 0u; i < 8u; i++) {
         for (var j = 0u; j < 8u; j++) {
             let noise = noise(origin_pos.xz + vec2u(i, j));
             let scaled = u32(noise * 10.0);
             for (var k = 0u; k < 8u; k++) {
                 let block_id = select(0u, 1u, k + origin_pos.y <= scaled);
-                chunk_set(chunk_idx, vec3u(i, k, j), block_id);
+                chunk__set(chunk_idx, vec3u(i, k, j), block_id);
             }
         }
     }
-    world_insert(chunk_pos, chunk_idx);
+    world__insert(chunk_pos, chunk_idx);
 }

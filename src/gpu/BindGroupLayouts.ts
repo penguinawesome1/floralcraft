@@ -45,6 +45,12 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "uniform" },
       },
+      // config
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
     ],
   });
 

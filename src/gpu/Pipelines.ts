@@ -1,5 +1,5 @@
 import genShader from "../shaders/gen.wgsl";
-import raycastShader from "../shaders/raycast.wgsl";
+import raycastShader from "../shaders/raycast/main.wgsl";
 import renderShader from "../shaders/render.wgsl";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
@@ -49,10 +49,7 @@ export async function createPipelines(
     compute: {
       module: raycastModule,
       entryPoint: "cs_main",
-      constants: {
-        IS_DEBUG_MODE: is_debug_mode ? 1 : 0,
-        MAX_DIST: 100,
-      },
+      constants: { config__IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
     },
   });
   const render = device.createRenderPipeline({

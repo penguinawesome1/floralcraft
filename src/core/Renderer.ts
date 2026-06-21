@@ -4,14 +4,15 @@ import { vec3 } from "gl-matrix";
 import {
   type BindGroupLayouts,
   createBindGroupLayouts,
-} from "./render/BindGroupLayouts.ts";
+} from "../gpu/BindGroupLayouts.ts";
 import {
   type BindGroups,
   type DynamicBindGroups,
   createStaticBindGroups,
-} from "./render/BindGroups.ts";
-import { type Buffers, createBuffers } from "./render/Buffers.ts";
-import { type Pipelines, createPipelines } from "./render/Pipelines.ts";
+} from "../gpu/BindGroups.ts";
+import { type Buffers, createBuffers } from "../gpu/Buffers.ts";
+import { type Pipelines, createPipelines } from "../gpu/Pipelines.ts";
+import { type Config, createConfig } from "./Config.ts";
 
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 100;
@@ -25,6 +26,7 @@ export class Renderer {
   private canvasSampler!: GPUSampler;
   private renderTarget!: GPUTexture;
   private camera!: Camera;
+  private config!: Config;
 
   private buffers!: Buffers;
   private bindGroupLayouts!: BindGroupLayouts;
@@ -51,8 +53,11 @@ export class Renderer {
 
     const urlParams = new URLSearchParams(window.location.search);
     this.isDebugMode = urlParams.has("debug");
-    this.isProfilingMode = urlParams.has("profile") && adapter.features.has("timestamp-query");
-    const requiredFeatures: GPUFeatureName[] = this.isProfilingMode ? ["timestamp-query"] : [];
+    this.isProfilingMode =
+      urlParams.has("profile") && adapter.features.has("timestamp-query");
+    const requiredFeatures: GPUFeatureName[] = this.isProfilingMode
+      ? ["timestamp-query"]
+      : [];
     this.device = await adapter.requestDevice({ requiredFeatures });
 
     this.context = this.canvas.getContext("webgpu")!;
@@ -62,7 +67,8 @@ export class Renderer {
       minFilter: "nearest",
       mipmapFilter: "nearest",
     });
-    this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(2, 3, 7));
+    this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(8, 8, 8));
+    this.config = createConfig(this.device, { max_trace_dist: 50 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.buffers = createBuffers(this.device);
@@ -78,6 +84,7 @@ export class Renderer {
       this.bindGroupLayouts,
       this.isDebugMode,
     );
+
     this.createProfilingResources();
 
     const observer = new ResizeObserver(() => {
@@ -89,6 +96,7 @@ export class Renderer {
   }
 
   update(inputState: InputState): void {
+    // this.config.update(this.device.queue, { max_trace_dist: 50 });
     this.camera.update(this.device.queue, inputState);
   }
 
@@ -96,7 +104,9 @@ export class Renderer {
     const ringIdx = this.frameCount % RING_SIZE;
     const slotAvailable = this.isProfilingMode && !this.slotBusy[ringIdx];
     if (this.isProfilingMode && !slotAvailable)
-      console.warn(`Profiling slot ${ringIdx} still busy, skipping timestamp capture this frame`);
+      console.warn(
+        `Profiling slot ${ringIdx} still busy, skipping timestamp capture this frame`,
+      );
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
@@ -116,8 +126,12 @@ export class Renderer {
     if (qSet) {
       this.slotBusy[ringIdx] = true;
       this.readTimestamps(ringIdx)
-        .catch((err) => console.error(`Profiling readback failed for slot ${ringIdx}:`, err))
-        .finally(() => { this.slotBusy[ringIdx] = false; });
+        .catch((err) =>
+          console.error(`Profiling readback failed for slot ${ringIdx}:`, err),
+        )
+        .finally(() => {
+          this.slotBusy[ringIdx] = false;
+        });
     }
 
     this.frameCount++;
@@ -126,7 +140,7 @@ export class Renderer {
   private async readTimestamps(idx: number): Promise<void> {
     if (!this.isProfilingMode) return;
 
-    await this.device.queue.onSubmittedWorkDone();
+    this.device.queue.onSubmittedWorkDone();
 
     const rBuf = this.readBuffers[idx];
     await rBuf.mapAsync(GPUMapMode.READ);
@@ -136,8 +150,10 @@ export class Renderer {
     rBuf.unmap();
 
     const genMilliseconds = Number(timestamps[1] - timestamps[0]) / 1_000_000;
-    const raycastMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
-    const renderMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
+    const raycastMilliseconds =
+      Number(timestamps[3] - timestamps[2]) / 1_000_000;
+    const renderMilliseconds =
+      Number(timestamps[5] - timestamps[4]) / 1_000_000;
 
     console.log(`
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
@@ -151,27 +167,39 @@ export class Renderer {
 
     const capacity = 6;
     for (let i = 0; i < RING_SIZE; i++) {
-      this.querySets.push(this.device.createQuerySet({ type: "timestamp", count: capacity }));
-      this.queryBuffers.push(this.device.createBuffer({
-        size: 8 * capacity,
-        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC
-      }));
-      this.readBuffers.push(this.device.createBuffer({
-        size: 8 * capacity,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-      }));
+      this.querySets.push(
+        this.device.createQuerySet({ type: "timestamp", count: capacity }),
+      );
+      this.queryBuffers.push(
+        this.device.createBuffer({
+          size: 8 * capacity,
+          usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+        }),
+      );
+      this.readBuffers.push(
+        this.device.createBuffer({
+          size: 8 * capacity,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        }),
+      );
       this.slotBusy.push(false);
     }
   }
 
-  private encodeGenPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
+  private encodeGenPass(
+    commandEncoder: GPUCommandEncoder,
+    querySet?: GPUQuerySet,
+  ): void {
     const pass = commandEncoder.beginComputePass({
       label: "gen pass",
-      timestampWrites: this.isProfilingMode && querySet ? {
-        querySet,
-        beginningOfPassWriteIndex: 0,
-        endOfPassWriteIndex: 1,
-      } : undefined
+      timestampWrites:
+        this.isProfilingMode && querySet
+          ? {
+              querySet,
+              beginningOfPassWriteIndex: 0,
+              endOfPassWriteIndex: 1,
+            }
+          : undefined,
     });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
@@ -179,14 +207,20 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeRaycastPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
+  private encodeRaycastPass(
+    commandEncoder: GPUCommandEncoder,
+    querySet?: GPUQuerySet,
+  ): void {
     const pass = commandEncoder.beginComputePass({
       label: "raycast pass",
-      timestampWrites: this.isProfilingMode && querySet ? {
-        querySet,
-        beginningOfPassWriteIndex: 2,
-        endOfPassWriteIndex: 3
-      } : undefined
+      timestampWrites:
+        this.isProfilingMode && querySet
+          ? {
+              querySet,
+              beginningOfPassWriteIndex: 2,
+              endOfPassWriteIndex: 3,
+            }
+          : undefined,
     });
     pass.setPipeline(this.pipelines.raycast);
     pass.setBindGroup(0, this.bindGroups.world);
@@ -198,15 +232,21 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeRenderPass(commandEncoder: GPUCommandEncoder, querySet?: GPUQuerySet): void {
+  private encodeRenderPass(
+    commandEncoder: GPUCommandEncoder,
+    querySet?: GPUQuerySet,
+  ): void {
     const canvasTextureView = this.context.getCurrentTexture().createView();
     const renderPass = commandEncoder.beginRenderPass({
       label: "render pass",
-      timestampWrites: this.isProfilingMode && querySet ? {
-        querySet,
-        beginningOfPassWriteIndex: 4,
-        endOfPassWriteIndex: 5,
-      } : undefined,
+      timestampWrites:
+        this.isProfilingMode && querySet
+          ? {
+              querySet,
+              beginningOfPassWriteIndex: 4,
+              endOfPassWriteIndex: 5,
+            }
+          : undefined,
       colorAttachments: [
         {
           view: canvasTextureView,
@@ -263,6 +303,7 @@ export class Renderer {
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: { buffer: this.camera.buffer } },
+        { binding: 2, resource: { buffer: this.config.buffer } },
       ],
     });
 
