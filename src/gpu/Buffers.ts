@@ -9,7 +9,9 @@ export function createBuffers(device: GPUDevice): Buffers {
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
   });
-  new Uint32Array(world.getMappedRange(0, 4)).set([8]);
+  const data = new Uint32Array(world.getMappedRange());
+  data.fill(0);
+  data[0] = 8;
   world.unmap();
   return { world };
 }
