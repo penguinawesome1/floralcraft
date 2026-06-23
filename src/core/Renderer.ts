@@ -68,7 +68,7 @@ export class Renderer {
       mipmapFilter: "nearest",
     });
     this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(8, 8, 8));
-    this.config = createConfig(this.device, { max_trace_dist: 50 });
+    this.config = createConfig(this.device, { max_trace_dist: 100 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.buffers = createBuffers(this.device);
@@ -111,7 +111,7 @@ export class Renderer {
 
     const commandEncoder = this.device.createCommandEncoder();
     this.encodeGenPass(commandEncoder, qSet);
-    this.encodeRaycastPass(commandEncoder, qSet);
+    this.encodeRaytracePass(commandEncoder, qSet);
     this.encodeRenderPass(commandEncoder, qSet);
 
     if (qSet) {
@@ -150,14 +150,14 @@ export class Renderer {
     rBuf.unmap();
 
     const genMilliseconds = Number(timestamps[1] - timestamps[0]) / 1_000_000;
-    const raycastMilliseconds =
+    const raytraceMilliseconds =
       Number(timestamps[3] - timestamps[2]) / 1_000_000;
     const renderMilliseconds =
       Number(timestamps[5] - timestamps[4]) / 1_000_000;
 
     console.log(`
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
-       Raycast Pass: ${raycastMilliseconds.toFixed(4)} ms\n
+       Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
        Render Pass: ${renderMilliseconds.toFixed(4)} ms
      `);
   }
@@ -203,16 +203,16 @@ export class Renderer {
     });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.atomic_world);
-    pass.dispatchWorkgroups(5, 5, 5);
+    pass.dispatchWorkgroups(50, 50, 50);
     pass.end();
   }
 
-  private encodeRaycastPass(
+  private encodeRaytracePass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const pass = commandEncoder.beginComputePass({
-      label: "raycast pass",
+      label: "raytrace pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
@@ -222,9 +222,9 @@ export class Renderer {
             }
           : undefined,
     });
-    pass.setPipeline(this.pipelines.raycast);
+    pass.setPipeline(this.pipelines.raytrace);
     pass.setBindGroup(0, this.bindGroups.world);
-    pass.setBindGroup(1, this.bindGroups.raycast);
+    pass.setBindGroup(1, this.bindGroups.raytrace);
     pass.dispatchWorkgroups(
       Math.ceil(this.canvas.width / 8),
       Math.ceil(this.canvas.height / 8),
@@ -297,9 +297,9 @@ export class Renderer {
   private createDynamicBindGroups(): DynamicBindGroups {
     const renderTargetView = this.renderTarget.createView();
 
-    const raycast = this.device.createBindGroup({
-      label: "raycast bind group",
-      layout: this.bindGroupLayouts.raycast,
+    const raytrace = this.device.createBindGroup({
+      label: "raytrace bind group",
+      layout: this.bindGroupLayouts.raytrace,
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: { buffer: this.camera.buffer } },
@@ -316,6 +316,6 @@ export class Renderer {
       ],
     });
 
-    return { raycast, render };
+    return { raytrace, render };
   }
 }

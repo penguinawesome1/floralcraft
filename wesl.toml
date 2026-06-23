@@ -1,0 +1,4 @@
+edition = "2026_pre"
+package-manager = "npm"
+root = "./src/shaders"
+include = ["./src/shaders/**/*.wesl"]

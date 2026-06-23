@@ -1,13 +1,13 @@
 export type BindGroupLayouts = {
-  world: GPUBindGroupLayout;
-  atomic_world: GPUBindGroupLayout;
-  raycast: GPUBindGroupLayout;
+  read_world: GPUBindGroupLayout;
+  read_write_world: GPUBindGroupLayout;
+  raytrace: GPUBindGroupLayout;
   render: GPUBindGroupLayout;
 };
 
 export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
-  const world = device.createBindGroupLayout({
-    label: "world bind group layout",
+  const read_world = device.createBindGroupLayout({
+    label: "read world bind group layout",
     entries: [
       // world
       {
@@ -18,8 +18,8 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  const atomic_world = device.createBindGroupLayout({
-    label: "atomic world bind group layout",
+  const read_write_world = device.createBindGroupLayout({
+    label: "read write world bind group layout",
     entries: [
       // world
       {
@@ -30,8 +30,8 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  const raycast = device.createBindGroupLayout({
-    label: "raycast bind group layout",
+  const raytrace = device.createBindGroupLayout({
+    label: "raytrace bind group layout",
     entries: [
       // texture_storage_2d
       {
@@ -72,5 +72,5 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  return { world, atomic_world, raycast, render };
+  return { read_world, read_write_world, raytrace, render };
 }

@@ -2,7 +2,7 @@ import { type BindGroupLayouts } from "./BindGroupLayouts";
 
 export type PipelineLayouts = {
   gen: GPUPipelineLayout;
-  raycast: GPUPipelineLayout;
+  raytrace: GPUPipelineLayout;
   render: GPUPipelineLayout;
 };
 
@@ -12,12 +12,12 @@ export function createPipelineLayouts(
 ): PipelineLayouts {
   const gen = device.createPipelineLayout({
     label: "gen pipeline layout",
-    bindGroupLayouts: [layouts.atomic_world],
+    bindGroupLayouts: [layouts.read_write_world],
   });
 
-  const raycast = device.createPipelineLayout({
-    label: "raycast pipeline layout",
-    bindGroupLayouts: [layouts.world, layouts.raycast],
+  const raytrace = device.createPipelineLayout({
+    label: "raytrace pipeline layout",
+    bindGroupLayouts: [layouts.read_world, layouts.raytrace],
   });
 
   const render = device.createPipelineLayout({
@@ -25,5 +25,5 @@ export function createPipelineLayouts(
     bindGroupLayouts: [layouts.render],
   });
 
-  return { gen, raycast, render };
+  return { gen, raytrace, render };
 }

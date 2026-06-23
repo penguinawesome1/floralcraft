@@ -7,7 +7,7 @@ export type StaticBindGroups = {
 };
 
 export type DynamicBindGroups = {
-  raycast: GPUBindGroup;
+  raytrace: GPUBindGroup;
   render: GPUBindGroup;
 };
 
@@ -20,13 +20,13 @@ export function createStaticBindGroups(
 ): StaticBindGroups {
   const world = device.createBindGroup({
     label: "world bind group",
-    layout: layouts.world,
+    layout: layouts.read_world,
     entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 
   const atomic_world = device.createBindGroup({
     label: "atomic world bind group",
-    layout: layouts.atomic_world,
+    layout: layouts.read_write_world,
     entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 

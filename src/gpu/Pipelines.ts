@@ -1,12 +1,13 @@
-import genShader from "../shaders/gen.wgsl";
-import raycastShader from "../shaders/raycast/main.wgsl";
-import renderShader from "../shaders/render.wgsl";
+import { link, makeWeslDevice } from "wesl";
+import genWesl from "../shaders/gen.wesl?link";
+import raytraceWesl from "../shaders/raytrace.wesl?link";
+import renderWesl from "../shaders/render.wesl?link";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 
 export type Pipelines = {
   gen: GPUComputePipeline;
-  raycast: GPUComputePipeline;
+  raytrace: GPUComputePipeline;
   render: GPURenderPipeline;
 };
 
@@ -16,21 +17,24 @@ export async function createPipelines(
   bind_group_layouts: BindGroupLayouts,
   is_debug_mode: boolean,
 ): Promise<Pipelines> {
-  const genModule = device.createShaderModule({
+  const weslDevice = makeWeslDevice(device);
+
+  const linkedGen = await link(genWesl);
+  const linkedRaytrace = await link(raytraceWesl);
+  const linkedRender = await link(renderWesl);
+
+  const genModule = linkedGen.createShaderModule(weslDevice, {
     label: "gen shader module",
-    code: genShader,
   });
-  const raycastModule = device.createShaderModule({
-    label: "raycast shader module",
-    code: raycastShader,
+  const raytraceModule = linkedRaytrace.createShaderModule(weslDevice, {
+    label: "raytrace shader module",
   });
-  const renderModule = device.createShaderModule({
+  const renderModule = linkedRender.createShaderModule(weslDevice, {
     label: "render shader module",
-    code: renderShader,
   });
 
   await Promise.all(
-    [genModule, raycastModule, renderModule].map(validateShader),
+    [genModule, raytraceModule, renderModule].map(validateShader),
   );
 
   const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
@@ -43,13 +47,13 @@ export async function createPipelines(
       entryPoint: "cs_main",
     },
   });
-  const raycast = device.createComputePipeline({
-    label: "raycast pipeline",
-    layout: pipeline_layouts.raycast,
+  const raytrace = device.createComputePipeline({
+    label: "raytrace pipeline",
+    layout: pipeline_layouts.raytrace,
     compute: {
-      module: raycastModule,
+      module: raytraceModule,
       entryPoint: "cs_main",
-      constants: { config__IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
+      constants: { IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
     },
   });
   const render = device.createRenderPipeline({
@@ -64,7 +68,7 @@ export async function createPipelines(
     primitive: { topology: "triangle-list" },
   });
 
-  return { gen, raycast, render };
+  return { gen, raytrace, render };
 }
 
 async function validateShader(module: GPUShaderModule) {
