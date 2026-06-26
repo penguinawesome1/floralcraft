@@ -9,10 +9,8 @@ struct Camera {
     rotation: mat4x4f,
 }
 
-@group(0) @binding(0) var<storage, read> world: World;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(1) var<uniform> cam: Camera;
-@group(1) @binding(2) var<uniform> config: Config;
 
 @compute @workgroup_size(8, 8, 1)
 fn cs_main(@builtin(global_invocation_id) px: vec3u) {

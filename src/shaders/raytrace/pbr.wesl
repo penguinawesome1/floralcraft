@@ -39,8 +39,8 @@ fn _block_material(id: u32) -> BlockMaterial {
         case blocks::GRASS: { return BlockMaterial(vec3f(0.18, 0.38, 0.15), 0.85, 0.0); }
         case blocks::DIRT: { return BlockMaterial(vec3f(0.25, 0.16, 0.11), 0.92, 0.0); }
         case blocks::STONE: { return BlockMaterial(vec3f(0.32, 0.33, 0.35), 0.65, 0.0); }
-        case 4: { return BlockMaterial(vec3f(0.96, 0.30, 0.16), 0.5, 0.5); }
-        case 5: { return BlockMaterial(vec3f(1.0, 0.5, 0.31), 0.5, 0.5); }
+        case blocks::BEDROCK: { return BlockMaterial(vec3f(0.25, 0.23, 0.22), 0.95, 0.0); }
+        case 8: { return BlockMaterial(vec3f(1.0, 0.0, 0.0), 0.5, 0.5); }
         default: { return BlockMaterial(vec3f(0.5, 0.0, 1.0), 0.5, 0.5); }
     }
 }
@@ -53,7 +53,7 @@ fn get_color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
     var accumulated_color = vec3f(0.0);
     var throughput = vec3f(1.0); // Keeps track of how much light can survive the bounces
 
-    let MAX_BOUNCES = 2u;
+    let MAX_BOUNCES = 10u;
 
     for (var bounce = 0u; bounce < MAX_BOUNCES; bounce = bounce + 1u) {
         if current_res.block_id == 0u {

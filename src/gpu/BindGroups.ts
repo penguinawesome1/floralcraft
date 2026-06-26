@@ -2,8 +2,8 @@ import type { BindGroupLayouts } from "./BindGroupLayouts";
 import type { Buffers } from "./Buffers";
 
 export type StaticBindGroups = {
-  world: GPUBindGroup;
-  atomic_world: GPUBindGroup;
+  read_world: GPUBindGroup;
+  read_write_world: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
@@ -18,17 +18,17 @@ export function createStaticBindGroups(
   layouts: BindGroupLayouts,
   buffers: Buffers,
 ): StaticBindGroups {
-  const world = device.createBindGroup({
-    label: "world bind group",
+  const read_world = device.createBindGroup({
+    label: "read world bind group",
     layout: layouts.read_world,
     entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 
-  const atomic_world = device.createBindGroup({
-    label: "atomic world bind group",
+  const read_write_world = device.createBindGroup({
+    label: "read write world bind group",
     layout: layouts.read_write_world,
     entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 
-  return { world, atomic_world };
+  return { read_world, read_write_world };
 }

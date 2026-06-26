@@ -1,5 +1,5 @@
 import package::config::{CHUNK_SIDE_SHIFT, BITS_PER_ID, CHUNKS_CAPACITY};
-import package::raytrace::world;
+import package::data::read::world::world;
 
 const CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
@@ -15,7 +15,7 @@ fn _pos_to_offset(pos: vec3u) -> u32 {
     return linear_idx * BITS_PER_ID;
 }
 
-fn get_block_id(chunk_idx: u32, pos: vec3u) -> u32 {
+fn block_id(chunk_idx: u32, pos: vec3u) -> u32 {
     let offset = _pos_to_offset(pos);
     let word_idx = offset >> 5u;
     let bit_idx = offset & 31u;

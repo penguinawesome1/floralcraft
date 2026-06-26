@@ -1,5 +1,5 @@
 import package::config::{CHUNK_SIDE_SHIFT, BITS_PER_ID, CHUNKS_CAPACITY};
-import package::gen::world;
+import package::data::read_write::world::world;
 
 const CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
@@ -8,7 +8,6 @@ const IDS_PER_GROUP = 32u / BITS_PER_ID;
 const ID_MASK = (1u << BITS_PER_ID) - 1u;
 const IS_NOT_UNIFORM = 0xFFFFFFFFu;
 const _BROADCAST_MULT = 0xFFFFFFFFu / ID_MASK;
-const _ZERO_IDX = 0xFFFFFFFFu;
 
 alias Chunk = array<atomic<u32>, CHUNK_LEN>;
 
@@ -24,13 +23,14 @@ fn _pos_to_addr(pos: vec3u) -> _ChunkAddr {
 }
 
 // Removes a chunk from the free list and returns its index.
-// The chunk is not cleared.
-fn free_pop() -> u32 {
+// The chunk is not zeroed.
+// Returns 0 when out of memory. 0 is reserved for null.
+fn alloc() -> u32 {
     var old_free = atomicLoad(&world.chunks_free);
     loop {
-        var new_free = atomicLoad(&world.chunks[old_free][0]);
-        new_free = select(new_free, old_free + 1u, new_free == 0u);
-        new_free = select(new_free, 0u, new_free == _ZERO_IDX);
+        let next_ptr = atomicLoad(&world.chunks[old_free][0]);
+        let new_free = select(next_ptr, old_free + 1u, next_ptr == 0u); // never pushed slot, bump to next
+        if new_free >= CHUNKS_CAPACITY { return 0u; }
         let res = atomicCompareExchangeWeak(&world.chunks_free, old_free, new_free);
         if res.exchanged { break; }
         old_free = res.old_value;
@@ -38,18 +38,17 @@ fn free_pop() -> u32 {
     return old_free;
 }
 
-fn free_push(idx: u32) {
+fn free(idx: u32) {
     var old_free = atomicLoad(&world.chunks_free);
     loop {
-        let true_old_free = select(old_free, _ZERO_IDX, old_free == 0u);
-        atomicStore(&world.chunks[idx][0], true_old_free);
+        atomicStore(&world.chunks[idx][0], old_free);
         let res = atomicCompareExchangeWeak(&world.chunks_free, old_free, idx);
         if res.exchanged { break; }
         old_free = res.old_value;
     }
 }
 
-fn get_block_id(chunk_idx: u32, pos: vec3u) -> u32 {
+fn block_id(chunk_idx: u32, pos: vec3u) -> u32 {
     let addr = _pos_to_addr(pos);
     let word = atomicLoad(&world.chunks[chunk_idx][addr.word_idx]);
     return extractBits(word, addr.bit_idx, BITS_PER_ID);
@@ -92,5 +91,5 @@ fn uniform_val(chunk_idx: u32) -> u32 {
         acc |= (atomicLoad(&world.chunks[chunk_idx][i]) ^ expected_pattern);
     }
     if acc != 0u { return IS_NOT_UNIFORM; }
-    return get_block_id(chunk_idx, vec3u(0, 0, 0));
+    return block_id(chunk_idx, vec3u(0, 0, 0));
 }

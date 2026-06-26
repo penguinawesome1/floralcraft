@@ -1,7 +1,7 @@
-import package::data::read::chunk::{get_block_id, CHUNK_SIDE};
-import package::data::read::world::{get_chunk_idx, IDX_NONE, UNIFORM_MASK, DEPTH_MASK, VALUE_MASK};
+import package::data::read::chunk::{block_id, CHUNK_SIDE};
+import package::data::read::world::{chunk_idx, IDX_NONE, UNIFORM_MASK, DEPTH_MASK, VALUE_MASK, DEPTH_SHIFT};
 import package::raytrace::conversions::block_to_chunk;
-import package::raytrace::config;
+import package::config::{config, SVO_DEPTH};
 
 const NO_AXIS = 0u;
 const X_AXIS = 1u;
@@ -26,6 +26,12 @@ struct TraceResult {
 struct Ray {
     origin: vec3f,
     dir: vec3f,
+}
+
+struct BlockResult {
+    is_uniform: bool,
+    id: u32,
+    depth: u32,
 }
 
 fn _umod3(a: vec3i, b: vec3i) -> vec3i {
@@ -65,25 +71,25 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
     return s;
 }
 
-// Finds the block id and keeps the uniform bit, if it exists.
-fn raw_block_id(pos: vec3i) -> u32 {
-    if any(pos < vec3i(0)) { return 0u; }
+fn block(pos: vec3i) -> BlockResult {
     let chunk_pos = block_to_chunk(pos);
-    let val = get_chunk_idx(vec3u(chunk_pos));
-    if val == IDX_NONE { return 0u; }
-    if (val & UNIFORM_MASK) != 0 { return (val & DEPTH_MASK) >> 18u; }
+    let val = chunk_idx(vec3u(chunk_pos));
+    if val == 0u { return BlockResult(true, 0u, 0u); } // chunk not present
+    if (val & UNIFORM_MASK) != 0u {
+        return BlockResult(true, val & VALUE_MASK, (val & DEPTH_MASK) >> DEPTH_SHIFT);
+    }
     let local_pos = vec3u(_umod3(pos, vec3i(i32(CHUNK_SIDE))));
-    return get_block_id(val, local_pos);
+    let id = block_id(val & VALUE_MASK, local_pos);
+    return BlockResult(false, id, SVO_DEPTH);
 }
 
 // Finds the first non-air block the ray hits.
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
-    let raw_bid = raw_block_id(snapped_pos);
-    let bid = raw_bid & VALUE_MASK;
-    if bid != 0u {
-        return TraceResult(ray.origin, bid, NO_AXIS);
+    let block_res = block(snapped_pos);
+    if block_res.id != 0u {
+        return TraceResult(ray.origin, block_res.id, NO_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -95,22 +101,19 @@ fn trace(ray: Ray) -> TraceResult {
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
     var last_hit_axis: u32;
 
-    var iterations = 0u;
-    loop {
-        iterations++;
-        if iterations > 1000u { break; }
+    for (var i = 0u; i < 1000u; i++) {
+        let step_res = step(t_max, snapped_pos, delta_t, grid_step);
+        t_max = step_res.t_max;
+        snapped_pos = step_res.snapped_pos;
+        last_hit_axis = step_res.last_hit_axis;
 
-        let res = step(t_max, snapped_pos, delta_t, grid_step);
-        t_max = res.t_max;
-        snapped_pos = res.snapped_pos;
-        last_hit_axis = res.last_hit_axis;
+        if step_res.t > config.max_trace_dist { break; }
 
-        if res.t > config.max_trace_dist { break; }
-
-        let raw_bid = raw_block_id(snapped_pos);
-        let bid = raw_bid & VALUE_MASK;
-        if bid != 0u { return TraceResult(ray.origin + ray.dir * res.t, bid, res.last_hit_axis); }
-        if (raw_bid & UNIFORM_MASK) == 0u { continue; }
+        let block_res = block(snapped_pos);
+        if block_res.id != 0u {
+            return TraceResult(ray.origin + ray.dir * step_res.t, block_res.id, step_res.last_hit_axis);
+        }
+        if !block_res.is_uniform { continue; }
 
         let chunk_local = _umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
         let to_edge = select(

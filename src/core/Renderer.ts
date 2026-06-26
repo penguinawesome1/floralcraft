@@ -68,7 +68,7 @@ export class Renderer {
       mipmapFilter: "nearest",
     });
     this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(8, 8, 8));
-    this.config = createConfig(this.device, { max_trace_dist: 100 });
+    this.config = createConfig(this.device, { max_trace_dist: 50 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.buffers = createBuffers(this.device);
@@ -195,15 +195,15 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-              querySet,
-              beginningOfPassWriteIndex: 0,
-              endOfPassWriteIndex: 1,
-            }
+            querySet,
+            beginningOfPassWriteIndex: 0,
+            endOfPassWriteIndex: 1,
+          }
           : undefined,
     });
     pass.setPipeline(this.pipelines.gen);
-    pass.setBindGroup(0, this.bindGroups.atomic_world);
-    pass.dispatchWorkgroups(50, 50, 50);
+    pass.setBindGroup(0, this.bindGroups.read_write_world);
+    pass.dispatchWorkgroups(20, 20, 20);
     pass.end();
   }
 
@@ -216,14 +216,14 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-              querySet,
-              beginningOfPassWriteIndex: 2,
-              endOfPassWriteIndex: 3,
-            }
+            querySet,
+            beginningOfPassWriteIndex: 2,
+            endOfPassWriteIndex: 3,
+          }
           : undefined,
     });
     pass.setPipeline(this.pipelines.raytrace);
-    pass.setBindGroup(0, this.bindGroups.world);
+    pass.setBindGroup(0, this.bindGroups.read_world);
     pass.setBindGroup(1, this.bindGroups.raytrace);
     pass.dispatchWorkgroups(
       Math.ceil(this.canvas.width / 8),
@@ -242,10 +242,10 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-              querySet,
-              beginningOfPassWriteIndex: 4,
-              endOfPassWriteIndex: 5,
-            }
+            querySet,
+            beginningOfPassWriteIndex: 4,
+            endOfPassWriteIndex: 5,
+          }
           : undefined,
       colorAttachments: [
         {
