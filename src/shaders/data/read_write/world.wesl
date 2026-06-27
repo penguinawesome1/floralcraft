@@ -1,12 +1,12 @@
 import package::config::{SVO_DEPTH, SVO_NODES_CAPACITY, CHUNKS_CAPACITY};
-import package::data::read_write::chunk::{Chunk, free as chunk_free, uniform_val, IS_NOT_UNIFORM};
+import package::data::read_write::chunk::{Chunk, IS_NOT_UNIFORM};
+import package::data::read_write::chunk;
 import package::data::blocks;
 
 const UNIFORM_MASK = 1u << 23u;
 const CHILD_SHIFT = 24u;
 const CHILD_MASK = 0xFFu << CHILD_SHIFT;
-const VALUE_MASK = 0x3FFFFu;
-const ADDRESS_MASK = 0x7FFFFFu;
+const VALUE_MASK = 0x7FFFFFu;
 const _OOM = 0xFFFFFFFEu;
 const _FAILED_CAS = 0xFFFFFFFDu;
 const _ADDED_UNIFORM = 0xFFFFFFFCu;
@@ -35,7 +35,7 @@ struct World {
 @group(0) @binding(0) var<storage, read_write> world: World;
 
 fn _child_info(pos: vec3u, height: u32) -> _ChildInfo {
-    let bits = (pos >> vec3u(height - 1u)) & vec3u(1u);
+    let bits = (pos >> vec3u(height - 2u)) & vec3u(1u);
     let num = bits.x | (bits.y << 1u) | (bits.z << 2u);
     let mask = 1u << (num + CHILD_SHIFT);
     return _ChildInfo(num, mask);
@@ -94,27 +94,10 @@ fn _add_or_alloc_child(node: u32, node_idx: u32, child_info: _ChildInfo) -> u32 
     return _FAILED_CAS;
 }
 
-fn _is_in_bounds(pos: vec3u) -> bool {
-    return all(pos < vec3u(1u << SVO_DEPTH));
-}
-
-fn _chunk_idx(pos: vec3u) -> u32 {
-    var node_idx = _child_info(pos, SVO_DEPTH - 1u).num;
-    for (var height = SVO_DEPTH - 1u; height > 0u; height--) {
-        let node = atomicLoad(&world.svo_nodes[node_idx]);
-        if (node & UNIFORM_MASK) != 0u { return node & VALUE_MASK; }
-        let child_info = _child_info(pos, height);
-        if (node & child_info.mask) == 0u { return blocks::AIR; }
-        node_idx = (node & ADDRESS_MASK) + child_info.num;
-    }
-    return atomicLoad(&world.svo_nodes[node_idx]) & VALUE_MASK;
-}
-
 fn insert(pos: vec3u, chunk_idx: u32) {
-    if !_is_in_bounds(pos) { return; }
     var node_idx = _child_info(pos, SVO_DEPTH - 1u).num;
     var height = SVO_DEPTH - 1u;
-    while height > 0u {
+    while height >= 2u {
         let node = atomicLoad(&world.svo_nodes[node_idx]);
         let child_info = _child_info(pos, height);
         var child_idx = _child_idx(node, child_info);
@@ -126,10 +109,13 @@ fn insert(pos: vec3u, chunk_idx: u32) {
         node_idx = child_idx;
         height--;
     }
-    atomicStore(&world.svo_nodes[node_idx], chunk_idx);
-}
 
-fn contains(pos: vec3u) -> bool {
-    if !_is_in_bounds(pos) { return false; }
-    return _chunk_idx(pos) != 0u;
+    let uval = chunk::uniform_val(chunk_idx);
+    if uval != IS_NOT_UNIFORM {
+        atomicStore(&world.svo_nodes[node_idx], uval | UNIFORM_MASK);
+        chunk::free(chunk_idx);
+        return;
+    }
+
+    atomicStore(&world.svo_nodes[node_idx], chunk_idx);
 }

@@ -1,6 +1,6 @@
 import package::data::read::chunk::{block_id, CHUNK_SIDE};
-import package::data::read::world::{lookup, LookupResult, IDX_NONE, UNIFORM_MASK, DEPTH_MASK, VALUE_MASK, DEPTH_SHIFT};
-import package::raytrace::conversions::block_to_chunk;
+import package::data::read::world::{LookupResult, UNIFORM_MASK, VALUE_MASK};
+import package::data::read::world;
 import package::config::{config, SVO_DEPTH};
 import package::data::blocks;
 
@@ -27,12 +27,6 @@ struct TraceResult {
 struct Ray {
     origin: vec3f,
     dir: vec3f,
-}
-
-struct BlockResult {
-    is_uniform: bool,
-    id: u32,
-    depth: u32,
 }
 
 fn _umod3(a: vec3i, b: vec3i) -> vec3i {
@@ -72,20 +66,12 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
     return s;
 }
 
-fn block(pos: vec3i) -> LookupResult {
-    let chunk_pos = vec3u(block_to_chunk(pos));
-    let res = lookup(chunk_pos);
-    if res.height != 0u { return res; }
-    let local_pos = vec3u(_umod3(pos, vec3i(i32(CHUNK_SIDE))));
-    return LookupResult(0u, block_id(res.value, local_pos));
-}
-
 // Finds the first non-air block the ray hits.
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
-    let block_res = block(snapped_pos);
-    if block_res.value != 0u {
+    let block_res = world::block(snapped_pos);
+    if block_res.value != blocks::AIR {
         return TraceResult(ray.origin, block_res.value, NO_AXIS);
     }
 
@@ -106,24 +92,27 @@ fn trace(ray: Ray) -> TraceResult {
 
         if step_res.t > config.max_trace_dist { break; }
 
-        let block_res = block(snapped_pos);
+        let block_res = world::block(snapped_pos);
         if block_res.value != blocks::AIR {
+            // if block_res.height != 0u {
+            //     return TraceResult(ray.origin + ray.dir * step_res.t, 2u, step_res.last_hit_axis);
+            // }
             return TraceResult(ray.origin + ray.dir * step_res.t, block_res.value, step_res.last_hit_axis);
         }
-        // if block_res.height == blocks::AIR { continue; }
+        if block_res.height == 0u { continue; }
 
-        // let chunk_local = _umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
-        // let to_edge = select(
-        //     chunk_local + vec3i(1),
-        //     vec3i(i32(CHUNK_SIDE)) - chunk_local,
-        //     grid_step > vec3i(0)
-        // );
-        // let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
-        // let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
-        // let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
+        let chunk_local = _umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
+        let to_edge = select(
+            chunk_local + vec3i(1),
+            vec3i(i32(CHUNK_SIDE)) - chunk_local,
+            grid_step > vec3i(0)
+        );
+        let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
+        let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
+        let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
 
-        // snapped_pos += steps * grid_step;
-        // t_max += vec3f(steps) * delta_t;
+        snapped_pos += steps * grid_step;
+        t_max += vec3f(steps) * delta_t;
     }
 
     return TraceResult(vec3f(0.0), blocks::AIR, NO_AXIS);

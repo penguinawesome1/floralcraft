@@ -1,9 +1,8 @@
 import package::config::{Config, IS_DEBUG_MODE};
 import package::data::read::world::World;
-import package::raytrace::conversions::px_to_dir;
+import package::data::blocks;
 import package::raytrace::dda::{Ray, trace, X_AXIS, Y_AXIS};
 import package::raytrace::pbr::get_color;
-import package::data::blocks;
 
 struct Camera {
     pos: vec3f,
@@ -13,12 +12,23 @@ struct Camera {
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(1) var<uniform> cam: Camera;
 
+// Converts pixel coordinates to a normalized world-space ray direction.
+// Used as the primary vector for grid traversal.
+fn _px_to_dir(px: vec2u, canvas_size: vec2u, rotation: mat4x4f) -> vec3f {
+    let aspect = f32(canvas_size.x) / f32(canvas_size.y);
+    let uv = (vec2f(px) / vec2f(canvas_size)) * 2.0 - 1.0;
+    let scaled = vec2f(uv.x * aspect, -uv.y);
+    let view_dir = vec3f(scaled, -1.0);
+    let world_dir = (rotation * vec4f(view_dir, 0.0)).xyz;
+    return normalize(world_dir);
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn cs_main(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
     if any(px.xy >= canvas_size) { return; }
 
-    let dir = px_to_dir(px.xy, canvas_size, cam.rotation);
+    let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
     let ray = Ray(cam.pos, dir);
     let res = trace(ray);
 

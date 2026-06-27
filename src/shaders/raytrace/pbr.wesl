@@ -47,6 +47,8 @@ fn _block_material(id: u32) -> BlockMaterial {
 
 // NOTE: AI-generated prototype. To be thoroughly reviewed and refactored in a future development stage.
 fn get_color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
+    // return vec4f(_block_material(initial_res.block_id).albedo, 1.0);
+
     var current_dir = initial_dir;
     var current_res = initial_res;
 

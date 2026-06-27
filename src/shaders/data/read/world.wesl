@@ -1,12 +1,13 @@
-import package::config::{SVO_DEPTH, SVO_NODES_CAPACITY, CHUNKS_CAPACITY};
-import package::data::read::chunk::Chunk;
+import package::config::{SVO_DEPTH, SVO_NODES_CAPACITY, CHUNKS_CAPACITY, CHUNK_SIDE_SHIFT};
+import package::data::read::chunk::{Chunk, CHUNK_SIDE};
+import package::data::read::chunk;
 import package::data::blocks;
+import package::raytrace::conversions::block_to_chunk;
 
 const UNIFORM_MASK = 1u << 23u;
 const CHILD_SHIFT = 24u;
 const CHILD_MASK = 0xFFu << CHILD_SHIFT;
-const ADDRESS_MASK = 0x7FFFFFu;
-const VALUE_MASK = 0x3FFFFu;
+const VALUE_MASK = 0x7FFFFFu;
 
 struct _ChildInfo {
     num: u32,
@@ -37,23 +38,33 @@ struct World {
 @group(0) @binding(0) var<storage, read> world: World;
 
 fn _child_info(pos: vec3u, height: u32) -> _ChildInfo {
-    let bits = (pos >> vec3u(height - 1u)) & vec3u(1u);
+    let bits = (pos >> vec3u(height - 2u)) & vec3u(1u);
     let num = bits.x | (bits.y << 1u) | (bits.z << 2u);
     let mask = 1u << (num + CHILD_SHIFT);
     return _ChildInfo(num, mask);
 }
 
-fn lookup(pos: vec3u) -> LookupResult {
-    if any(pos >= vec3u(1u << SVO_DEPTH)) {
-        return LookupResult(1u, blocks::AIR); // height 1 ensures the minimum of one chunk is skipped in dda
-    }
-    var node_idx = _child_info(pos, SVO_DEPTH - 1u).num;
-    for (var height = SVO_DEPTH - 1u; height > 0u; height--) {
+fn _block_to_chunk(pos: vec3i) -> vec3i {
+    return pos >> vec3u(CHUNK_SIDE_SHIFT);
+}
+
+fn _umod3(a: vec3i, b: vec3i) -> vec3i {
+    return ((a % b) + b) % b;
+}
+
+fn block(pos: vec3i) -> LookupResult {
+    let chunk_pos = vec3u(_block_to_chunk(pos));
+    if any(chunk_pos >= vec3u(1u << SVO_DEPTH)) { return LookupResult(1u, blocks::AIR); }
+    var node_idx = _child_info(chunk_pos, SVO_DEPTH - 1u).num;
+    for (var height = SVO_DEPTH - 1u; height >= 2u; height--) {
         let node = world.svo_nodes[node_idx];
         if (node & UNIFORM_MASK) != 0u { return LookupResult(height, node & VALUE_MASK); }
-        let child_info = _child_info(pos, height);
+        let child_info = _child_info(chunk_pos, height);
         if (node & child_info.mask) == 0u { return LookupResult(height, blocks::AIR); }
-        node_idx = (node & ADDRESS_MASK) + child_info.num;
+        node_idx = (node & VALUE_MASK) + child_info.num;
     }
-    return LookupResult(0u, world.svo_nodes[node_idx] & VALUE_MASK);
+    let leaf = world.svo_nodes[node_idx];
+    if (leaf & UNIFORM_MASK) != 0u { return LookupResult(1u, leaf & VALUE_MASK); }
+    let local_pos = vec3u(_umod3(pos, vec3i(i32(CHUNK_SIDE))));
+    return LookupResult(0u, chunk::block_id(leaf, local_pos));
 }
