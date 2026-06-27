@@ -4,6 +4,7 @@ import type { Buffers } from "./Buffers";
 export type StaticBindGroups = {
   read_world: GPUBindGroup;
   read_write_world: GPUBindGroup;
+  gen: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
@@ -30,5 +31,11 @@ export function createStaticBindGroups(
     entries: [{ binding: 0, resource: { buffer: buffers.world } }],
   });
 
-  return { read_world, read_write_world };
+  const gen = device.createBindGroup({
+    label: "gen bind group",
+    layout: layouts.gen,
+    entries: [{ binding: 0, resource: { buffer: buffers.gen } }],
+  });
+
+  return { read_world, read_write_world, gen };
 }

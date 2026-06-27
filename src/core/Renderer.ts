@@ -12,7 +12,7 @@ import {
 } from "../gpu/BindGroups.ts";
 import { type Buffers, createBuffers } from "../gpu/Buffers.ts";
 import { type Pipelines, createPipelines } from "../gpu/Pipelines.ts";
-import { type Config, createConfig } from "./Config.ts";
+import { type Config, createConfig, GEN_SIDE } from "./Config.ts";
 
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 100;
@@ -67,7 +67,12 @@ export class Renderer {
       minFilter: "nearest",
       mipmapFilter: "nearest",
     });
-    this.camera = new Camera(this.device, 0.002, 0.2, vec3.fromValues(8, 8, 8));
+    this.camera = new Camera(
+      this.device,
+      0.002,
+      0.2,
+      vec3.fromValues(8, 20, 8),
+    );
     this.config = createConfig(this.device, { max_trace_dist: 50 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
@@ -201,7 +206,8 @@ export class Renderer {
     });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.read_write_world);
-    pass.dispatchWorkgroups(20, 20, 20);
+    pass.setBindGroup(1, this.bindGroups.gen);
+    pass.dispatchWorkgroups(GEN_SIDE, GEN_SIDE, GEN_SIDE);
     pass.end();
   }
 

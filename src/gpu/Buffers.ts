@@ -1,5 +1,8 @@
+import { GEN_SIDE } from "../core/Config";
+
 export type Buffers = {
   world: GPUBuffer;
+  gen: GPUBuffer;
 };
 
 export function createBuffers(device: GPUDevice): Buffers {
@@ -14,5 +17,16 @@ export function createBuffers(device: GPUDevice): Buffers {
   data[0] = 1;
   data[1] = 1;
   world.unmap();
-  return { world };
+
+  const CHUNK_PRESENCE_CAPACITY = Math.ceil(
+    (GEN_SIDE * GEN_SIDE * GEN_SIDE) / 32,
+  );
+
+  const gen = device.createBuffer({
+    label: "gen buffer",
+    size: CHUNK_PRESENCE_CAPACITY * 4,
+    usage: GPUBufferUsage.STORAGE,
+  });
+
+  return { world, gen };
 }

@@ -4,6 +4,7 @@ import raytraceWesl from "../shaders/raytrace.wesl?link";
 import renderWesl from "../shaders/render.wesl?link";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
+import { GEN_SIDE } from "../core/Config.ts";
 
 export type Pipelines = {
   gen: GPUComputePipeline;
@@ -19,7 +20,7 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
-  const linkedGen = await link(genWesl);
+  const linkedGen = await link({ ...genWesl, constants: { GEN_SIDE } });
   const linkedRaytrace = await link(raytraceWesl);
   const linkedRender = await link(renderWesl);
 

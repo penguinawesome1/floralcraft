@@ -1,13 +1,44 @@
-import package::data::read_write::chunk::{alloc, set_block_id, CHUNK_SIDE};
-import package::data::read_write::world::{World, chunk_idx, insert, contains};
+import package::data::read_write::chunk::{CHUNK_SIDE};
+import package::data::read_write::chunk;
+import package::data::read_write::world;
 import package::data::blocks;
+import constants::GEN_SIDE;
 
-fn hash(p: vec2f) -> vec2f {
+const CHUNK_PRESENCE_CAPACITY = (GEN_SIDE * GEN_SIDE * GEN_SIDE + 31u) / 32u;
+
+struct _PresenceAddr {
+    word_idx: u32,
+    bit_idx: u32,
+}
+
+@group(1) @binding(0) var<storage, read_write> chunk_presence: array<atomic<u32>, CHUNK_PRESENCE_CAPACITY>;
+
+fn _pos_to_addr(pos: vec3u) -> _PresenceAddr {
+    let linear_idx = pos.z * (GEN_SIDE * GEN_SIDE) + pos.y * GEN_SIDE + pos.x;
+    return _PresenceAddr(linear_idx >> 5u, linear_idx & 31u);
+}
+
+// Inserts the new position into chunk presence.
+// Returns false if a position was already there.
+fn insert(pos: vec3u) -> bool {
+    let addr = _pos_to_addr(pos);
+    let mask = 1u << addr.bit_idx;
+    let old = atomicOr(&chunk_presence[addr.word_idx], mask);
+    return (old & mask) == 0u;
+}
+
+fn remove(pos: vec3u) {
+    let addr = _pos_to_addr(pos);
+    let mask = 1u << addr.bit_idx;
+    atomicAnd(&chunk_presence[addr.word_idx], mask);
+}
+
+fn _hash(p: vec2f) -> vec2f {
     let p2 = vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)));
     return -1.0 + 2.0 * fract(sin(p2) * 43758.5453123);
 }
 
-fn simplex2d(p: vec2f) -> f32 {
+fn _simplex2d(p: vec2f) -> f32 {
     let K1 = 0.366025404;
     let K2 = 0.211324865;
     let i = floor(p + (p.x + p.y) * K1);
@@ -16,20 +47,23 @@ fn simplex2d(p: vec2f) -> f32 {
     let b = a - o + K2;
     let c = a - 1.0 + 2.0 * K2;
     let h = max(0.5 - vec3f(dot(a, a), dot(b, b), dot(c, c)), vec3f(0.0));
-    let n = h * h * h * h * vec3f(dot(a, hash(i + 0.0)), dot(b, hash(i + o)), dot(c, hash(i + 1.0)));
+    let n = h * h * h * h * vec3f(dot(a, _hash(i + 0.0)), dot(b, _hash(i + o)), dot(c, _hash(i + 1.0)));
     return dot(n, vec3f(70.0));
 }
 
 @compute @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) chunk_pos: vec3u) {
-    if contains(chunk_pos) { return; }
-    let chunk_idx = alloc();
-    if chunk_idx == 0u { return; }
+    if !insert(chunk_pos) { return; }
+    let chunk_idx = chunk::alloc();
+    if chunk_idx == 0u {
+        remove(chunk_pos);
+        return;
+    }
     let origin_pos = chunk_pos * CHUNK_SIDE;
     for (var i = 0u; i < CHUNK_SIDE; i++) {
         for (var j = 0u; j < CHUNK_SIDE; j++) {
             let pos = vec2f(origin_pos.xz + vec2u(i, j)) * 0.04;
-            let noise_normalized = simplex2d(pos) * 0.5 + 0.5;
+            let noise_normalized = _simplex2d(pos) * 0.5 + 0.5;
             let scaled = u32(noise_normalized * 50.0);
             for (var k = 0u; k < CHUNK_SIDE; k++) {
                 let current_y = k + origin_pos.y;
@@ -45,9 +79,9 @@ fn cs_main(@builtin(global_invocation_id) chunk_pos: vec3u) {
                 } else {
                     block_id = blocks::AIR;
                 }
-                set_block_id(chunk_idx, vec3u(i, k, j), block_id);
+                chunk::set_block_id(chunk_idx, vec3u(i, k, j), block_id);
             }
         }
     }
-    insert(chunk_pos, chunk_idx);
+    world::insert(chunk_pos, chunk_idx);
 }

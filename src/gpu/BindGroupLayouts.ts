@@ -1,6 +1,7 @@
 export type BindGroupLayouts = {
   read_world: GPUBindGroupLayout;
   read_write_world: GPUBindGroupLayout;
+  gen: GPUBindGroupLayout;
   raytrace: GPUBindGroupLayout;
   render: GPUBindGroupLayout;
 };
@@ -22,6 +23,18 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     label: "read write world bind group layout",
     entries: [
       // world
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+
+  const gen = device.createBindGroupLayout({
+    label: "gen bind group layout",
+    entries: [
+      // chunk presence
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
@@ -72,5 +85,5 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  return { read_world, read_write_world, raytrace, render };
+  return { read_world, read_write_world, gen, raytrace, render };
 }

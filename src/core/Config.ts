@@ -1,3 +1,5 @@
+export const GEN_SIDE = 20;
+
 export type Config = {
   buffer: GPUBuffer;
   uniformData: Float32Array;
