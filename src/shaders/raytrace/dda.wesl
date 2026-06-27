@@ -1,7 +1,8 @@
 import package::data::read::chunk::{block_id, CHUNK_SIDE};
-import package::data::read::world::{chunk_idx, IDX_NONE, UNIFORM_MASK, DEPTH_MASK, VALUE_MASK, DEPTH_SHIFT};
+import package::data::read::world::{lookup, LookupResult, IDX_NONE, UNIFORM_MASK, DEPTH_MASK, VALUE_MASK, DEPTH_SHIFT};
 import package::raytrace::conversions::block_to_chunk;
 import package::config::{config, SVO_DEPTH};
+import package::data::blocks;
 
 const NO_AXIS = 0u;
 const X_AXIS = 1u;
@@ -71,16 +72,12 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
     return s;
 }
 
-fn block(pos: vec3i) -> BlockResult {
-    let chunk_pos = block_to_chunk(pos);
-    let val = chunk_idx(vec3u(chunk_pos));
-    if val == 0u { return BlockResult(true, 0u, 0u); } // chunk not present
-    if (val & UNIFORM_MASK) != 0u {
-        return BlockResult(true, val & VALUE_MASK, (val & DEPTH_MASK) >> DEPTH_SHIFT);
-    }
+fn block(pos: vec3i) -> LookupResult {
+    let chunk_pos = vec3u(block_to_chunk(pos));
+    let res = lookup(chunk_pos);
+    if res.height != 0u { return res; }
     let local_pos = vec3u(_umod3(pos, vec3i(i32(CHUNK_SIDE))));
-    let id = block_id(val & VALUE_MASK, local_pos);
-    return BlockResult(false, id, SVO_DEPTH);
+    return LookupResult(0u, block_id(res.value, local_pos));
 }
 
 // Finds the first non-air block the ray hits.
@@ -88,8 +85,8 @@ fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
     let block_res = block(snapped_pos);
-    if block_res.id != 0u {
-        return TraceResult(ray.origin, block_res.id, NO_AXIS);
+    if block_res.value != 0u {
+        return TraceResult(ray.origin, block_res.value, NO_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -110,26 +107,26 @@ fn trace(ray: Ray) -> TraceResult {
         if step_res.t > config.max_trace_dist { break; }
 
         let block_res = block(snapped_pos);
-        if block_res.id != 0u {
-            return TraceResult(ray.origin + ray.dir * step_res.t, block_res.id, step_res.last_hit_axis);
+        if block_res.value != blocks::AIR {
+            return TraceResult(ray.origin + ray.dir * step_res.t, block_res.value, step_res.last_hit_axis);
         }
-        if !block_res.is_uniform { continue; }
+        // if block_res.height == blocks::AIR { continue; }
 
-        let chunk_local = _umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
-        let to_edge = select(
-            chunk_local + vec3i(1),
-            vec3i(i32(CHUNK_SIDE)) - chunk_local,
-            grid_step > vec3i(0)
-        );
-        let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
-        let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
-        let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
+        // let chunk_local = _umod3(snapped_pos, vec3i(i32(CHUNK_SIDE)));
+        // let to_edge = select(
+        //     chunk_local + vec3i(1),
+        //     vec3i(i32(CHUNK_SIDE)) - chunk_local,
+        //     grid_step > vec3i(0)
+        // );
+        // let exit_t = t_max + (vec3f(to_edge) - vec3f(1.0)) * delta_t;
+        // let min_t = min(exit_t.x, min(exit_t.y, exit_t.z));
+        // let steps = select(vec3i(0), to_edge - vec3i(1), exit_t <= vec3f(min_t));
 
-        snapped_pos += steps * grid_step;
-        t_max += vec3f(steps) * delta_t;
+        // snapped_pos += steps * grid_step;
+        // t_max += vec3f(steps) * delta_t;
     }
 
-    return TraceResult(vec3f(0.0), 0u, NO_AXIS);
+    return TraceResult(vec3f(0.0), blocks::AIR, NO_AXIS);
 }
 
 fn axis_normal(axis: u32, dir: vec3f) -> vec3f {

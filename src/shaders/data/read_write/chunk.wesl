@@ -56,13 +56,10 @@ fn block_id(chunk_idx: u32, pos: vec3u) -> u32 {
 
 fn set_block_id(chunk_idx: u32, pos: vec3u, id: u32) {
     let addr = _pos_to_addr(pos);
-    var old_word = atomicLoad(&world.chunks[chunk_idx][addr.word_idx]);
-    loop {
-        let new_word = insertBits(old_word, id, addr.bit_idx, BITS_PER_ID);
-        let res = atomicCompareExchangeWeak(&world.chunks[chunk_idx][addr.word_idx], old_word, new_word);
-        if res.exchanged { break; }
-        old_word = res.old_value;
-    }
+    let clear_mask = ~(ID_MASK << addr.bit_idx);
+    let id_bits = id << addr.bit_idx;
+    atomicAnd(&world.chunks[chunk_idx][addr.word_idx], clear_mask);
+    atomicOr(&world.chunks[chunk_idx][addr.word_idx], id_bits);
 }
 
 fn fill(chunk_idx: u32, id: u32) {

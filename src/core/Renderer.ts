@@ -140,8 +140,6 @@ export class Renderer {
   private async readTimestamps(idx: number): Promise<void> {
     if (!this.isProfilingMode) return;
 
-    this.device.queue.onSubmittedWorkDone();
-
     const rBuf = this.readBuffers[idx];
     await rBuf.mapAsync(GPUMapMode.READ);
 
@@ -195,10 +193,10 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-            querySet,
-            beginningOfPassWriteIndex: 0,
-            endOfPassWriteIndex: 1,
-          }
+              querySet,
+              beginningOfPassWriteIndex: 0,
+              endOfPassWriteIndex: 1,
+            }
           : undefined,
     });
     pass.setPipeline(this.pipelines.gen);
@@ -216,10 +214,10 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-            querySet,
-            beginningOfPassWriteIndex: 2,
-            endOfPassWriteIndex: 3,
-          }
+              querySet,
+              beginningOfPassWriteIndex: 2,
+              endOfPassWriteIndex: 3,
+            }
           : undefined,
     });
     pass.setPipeline(this.pipelines.raytrace);
@@ -242,10 +240,10 @@ export class Renderer {
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
-            querySet,
-            beginningOfPassWriteIndex: 4,
-            endOfPassWriteIndex: 5,
-          }
+              querySet,
+              beginningOfPassWriteIndex: 4,
+              endOfPassWriteIndex: 5,
+            }
           : undefined,
       colorAttachments: [
         {

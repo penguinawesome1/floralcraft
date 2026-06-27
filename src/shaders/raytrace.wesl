@@ -3,6 +3,7 @@ import package::data::read::world::World;
 import package::raytrace::conversions::px_to_dir;
 import package::raytrace::dda::{Ray, trace, X_AXIS, Y_AXIS};
 import package::raytrace::pbr::get_color;
+import package::data::blocks;
 
 struct Camera {
     pos: vec3f,
@@ -21,7 +22,7 @@ fn cs_main(@builtin(global_invocation_id) px: vec3u) {
     let ray = Ray(cam.pos, dir);
     let res = trace(ray);
 
-    if res.block_id == 0 {
+    if res.block_id == blocks::AIR {
         textureStore(t_output, px.xy, vec4f(0.7, 0.75, 0.95, 1.0));
         return;
     }
