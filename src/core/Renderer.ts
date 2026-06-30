@@ -73,7 +73,7 @@ export class Renderer {
       0.2,
       vec3.fromValues(8, 20, 8),
     );
-    this.config = createConfig(this.device, { max_trace_dist: 50 });
+    this.config = createConfig(this.device, { max_trace_dist: 100 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.buffers = createBuffers(this.device);

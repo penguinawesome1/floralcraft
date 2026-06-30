@@ -4,10 +4,10 @@ import package::data::read_write::world::world;
 const CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
 const CHUNK_LEN = (CHUNK_VOLUME * BITS_PER_ID + 31u) / 32u;
-const IDS_PER_GROUP = 32u / BITS_PER_ID;
-const ID_MASK = (1u << BITS_PER_ID) - 1u;
 const IS_NOT_UNIFORM = 0xFFFFFFFFu;
-const _BROADCAST_MULT = 0xFFFFFFFFu / ID_MASK;
+const _ID_MASK = (1u << BITS_PER_ID) - 1u;
+const _IDS_PER_GROUP = 32u / BITS_PER_ID;
+const _BROADCAST_MULT = 0xFFFFFFFFu / _ID_MASK;
 
 alias Chunk = array<atomic<u32>, CHUNK_LEN>;
 
@@ -56,7 +56,7 @@ fn block_id(chunk_idx: u32, pos: vec3u) -> u32 {
 
 fn set_block_id(chunk_idx: u32, pos: vec3u, id: u32) {
     let addr = _pos_to_addr(pos);
-    let clear_mask = ~(ID_MASK << addr.bit_idx);
+    let clear_mask = ~(_ID_MASK << addr.bit_idx);
     let id_bits = id << addr.bit_idx;
     atomicAnd(&world.chunks[chunk_idx][addr.word_idx], clear_mask);
     atomicOr(&world.chunks[chunk_idx][addr.word_idx], id_bits);
@@ -64,7 +64,7 @@ fn set_block_id(chunk_idx: u32, pos: vec3u, id: u32) {
 
 fn fill(chunk_idx: u32, id: u32) {
     var filled_word = 0u;
-    for (var slot = 0u; slot < IDS_PER_GROUP; slot++) {
+    for (var slot = 0u; slot < _IDS_PER_GROUP; slot++) {
         filled_word = insertBits(filled_word, id, slot * BITS_PER_ID, BITS_PER_ID);
     }
     for (var i = 0u; i < CHUNK_LEN; i++) {
@@ -81,7 +81,7 @@ fn is_empty(chunk_idx: u32) -> bool {
 }
 
 fn uniform_val(chunk_idx: u32) -> u32 {
-    let first_id = atomicLoad(&world.chunks[chunk_idx][0]) & ID_MASK;
+    let first_id = atomicLoad(&world.chunks[chunk_idx][0]) & _ID_MASK;
     let expected_pattern = first_id * _BROADCAST_MULT;
     var acc = 0u;
     for (var i = 0u; i < CHUNK_LEN; i++) {

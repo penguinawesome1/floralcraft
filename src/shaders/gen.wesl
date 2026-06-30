@@ -1,7 +1,5 @@
-import package::data::read_write::chunk::{CHUNK_SIDE};
-import package::data::read_write::chunk;
-import package::data::read_write::world;
-import package::data::blocks;
+import package::data::read_write::{chunk, chunk::{CHUNK_SIDE}, svo_nodes};
+import package::data::{blocks, pos};
 import constants::GEN_SIDE;
 
 const CHUNK_PRESENCE_CAPACITY = (GEN_SIDE * GEN_SIDE * GEN_SIDE + 31u) / 32u;
@@ -53,13 +51,14 @@ fn _simplex2d(p: vec2f) -> f32 {
 
 @compute @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) chunk_pos: vec3u) {
-    if !insert(chunk_pos) { return; }
+    let wrapped_pos = pos::wrapped_chunk(vec3i(chunk_pos));
+    if !insert(wrapped_pos) { return; }
     let chunk_idx = chunk::alloc();
     if chunk_idx == 0u {
-        remove(chunk_pos);
+        remove(wrapped_pos);
         return;
     }
-    let origin_pos = chunk_pos * CHUNK_SIDE;
+    let origin_pos = wrapped_pos * CHUNK_SIDE;
     for (var i = 0u; i < CHUNK_SIDE; i++) {
         for (var j = 0u; j < CHUNK_SIDE; j++) {
             let pos = vec2f(origin_pos.xz + vec2u(i, j)) * 0.04;
@@ -83,5 +82,5 @@ fn cs_main(@builtin(global_invocation_id) chunk_pos: vec3u) {
             }
         }
     }
-    world::insert(chunk_pos, chunk_idx);
+    svo_nodes::insert(wrapped_pos, chunk_idx);
 }

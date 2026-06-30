@@ -1,5 +1,4 @@
 import package::config::{Config, IS_DEBUG_MODE};
-import package::data::read::world::World;
 import package::data::blocks;
 import package::raytrace::dda::{Ray, trace, X_AXIS, Y_AXIS};
 import package::raytrace::pbr::get_color;

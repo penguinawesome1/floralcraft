@@ -4,8 +4,6 @@ import package::data::read::world::world;
 const CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
 const CHUNK_LEN = (CHUNK_VOLUME * BITS_PER_ID + 31u) / 32u;
-const IDS_PER_GROUP = 32u / BITS_PER_ID;
-const ID_MASK = (1u << BITS_PER_ID) - 1u;
 
 alias Chunk = array<u32, CHUNK_LEN>;
 

@@ -1,4 +1,4 @@
-export const GEN_SIDE = 20;
+export const GEN_SIDE = 8;
 
 export type Config = {
   buffer: GPUBuffer;
