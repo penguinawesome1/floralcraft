@@ -7,45 +7,60 @@ class GameApp {
   private readonly loadingScreen: HTMLDivElement;
   private readonly inputManager: InputManager;
   private readonly renderer: Renderer;
+  private progressText: HTMLElement;
   private animationFrameId = 0;
+  private isPaused = false;
 
   constructor(canvas: HTMLCanvasElement, loadingScreen: HTMLDivElement) {
     this.canvas = canvas;
     this.loadingScreen = loadingScreen;
     this.inputManager = new InputManager(this.canvas);
     this.renderer = new Renderer(this.canvas);
+
+    const prog = document.getElementById("progress-text");
+    if (!(prog instanceof HTMLElement)) {
+      throw new Error("Missing #progress-text element");
+    }
+    this.progressText = prog;
   }
 
   async init() {
-    const progressText = document.getElementById(
-      "progress-text",
-    ) as HTMLDivElement;
-
     try {
       await this.renderer.init();
     } catch (e) {
-      progressText.textContent =
+      this.progressText.textContent =
         e instanceof Error ? e.message : "Unknown error";
       return;
     }
 
-    progressText.textContent = "Click to Start!";
-    progressText.classList.add("pulsing");
-    this.loadingScreen.style.pointerEvents = "none";
-    this.canvas.addEventListener(
-      "click",
-      () => (this.loadingScreen.style.opacity = "0"),
-    );
-    this.loadingScreen.addEventListener(
-      "transitionend",
-      () => this.loadingScreen.remove(),
-      { once: true },
-    );
+    this.progressText.textContent = "Click to Start!";
+    this.progressText.classList.add("pulsing");
     this.animationFrameId = requestAnimationFrame(this.gameLoop);
+    document.addEventListener("pointerlockchange", () => {
+      if (document.pointerLockElement === this.canvas) {
+        this.loadingScreen.style.opacity = "0";
+        this.isPaused = false;
+      } else {
+        this.isPaused = true;
+      }
+    });
+    this.loadingScreen.addEventListener("transitionend", () => {
+      this.loadingScreen.style.display = "none";
+    });
   }
 
   private readonly gameLoop = (_time: number) => {
     const inputState = this.inputManager.poll();
+
+    if (this.isPaused) {
+      this.loadingScreen.style.opacity = "1";
+      this.loadingScreen.style.display = "flex";
+      this.progressText.textContent = "Click to Resume";
+      this.progressText.classList.remove("pulsing");
+      this.animationFrameId = requestAnimationFrame(this.gameLoop);
+      return;
+    }
+
     this.renderer.update(inputState);
     this.renderer.frame();
     this.animationFrameId = requestAnimationFrame(this.gameLoop);
