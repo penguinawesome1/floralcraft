@@ -2,7 +2,7 @@ import package::config::SVO_DEPTH;
 import package::data::{read::{chunk, world::world}, blocks, pos};
 
 const UNIFORM_MASK = 1u << 23u;
-const VALUE_MASK = 0x7FFFFFu;
+const VALUE_MASK = 0x3FFFFFu;
 const CHILD_SHIFT = 24u;
 
 struct _ChildInfo {

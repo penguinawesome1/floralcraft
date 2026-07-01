@@ -13,7 +13,6 @@ export function createBuffers(device: GPUDevice): Buffers {
     mappedAtCreation: true,
   });
   const data = new Uint32Array(world.getMappedRange());
-  data.fill(0);
   data[0] = 9;
   data[1] = 1;
   world.unmap();

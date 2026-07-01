@@ -28,7 +28,7 @@ fn insert(pos: vec3u) -> bool {
 fn remove(pos: vec3u) {
     let addr = _pos_to_addr(pos);
     let mask = 1u << addr.bit_idx;
-    atomicAnd(&chunk_presence[addr.word_idx], mask);
+    atomicAnd(&chunk_presence[addr.word_idx], ~mask);
 }
 
 fn _hash(p: vec2f) -> vec2f {

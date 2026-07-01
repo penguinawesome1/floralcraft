@@ -87,6 +87,9 @@ fn trace(ray: Ray) -> TraceResult {
         if step_res.t > config.max_trace_dist { break; }
 
         let block_res = world::block(snapped_pos);
+        // if block_res.height != 0u {
+        //     return TraceResult(ray.origin + ray.dir * step_res.t, block_res.height, step_res.last_hit_axis);
+        // }
         if block_res.id != blocks::AIR {
             return TraceResult(ray.origin + ray.dir * step_res.t, block_res.id, step_res.last_hit_axis);
         }

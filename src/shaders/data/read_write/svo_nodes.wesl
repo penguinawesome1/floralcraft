@@ -2,8 +2,9 @@ import package::config::{SVO_DEPTH, SVO_NODES_CAPACITY};
 import package::data::read_write::{chunk, world::world};
 
 const UNIFORM_MASK = 1u << 23u;
-const VALUE_MASK = 0x7FFFFFu;
+const VALUE_MASK = 0x3FFFFFu;
 const CHILD_SHIFT = 24u;
+const COLLAPSING_MASK = 1u << 22u;
 const _OOM = 0xFFFFFFFEu;
 const _FAILED_CAS = 0xFFFFFFFDu;
 const _ADDED_UNIFORM = 0xFFFFFFFCu;
@@ -81,9 +82,18 @@ fn _try_collapse(path_info: _PathInfo, uval: u32) -> bool {
     }
     if !acc { return false; }
 
-    let res = atomicCompareExchangeWeak(&world.svo_nodes[path_info.node_idx], path_info.node, goal);
-    if !res.exchanged { return res.old_value == goal; }
+    // let res = atomicCompareExchangeWeak(&world.svo_nodes[path_info.node_idx], path_info.node, goal);
+    // if !res.exchanged { return false; }
+    // _free(base_idx);
+    // return true;
+
+    let stage_node = path_info.node | COLLAPSING_MASK;
+    let res = atomicCompareExchangeWeak(&world.svo_nodes[path_info.node_idx], path_info.node, stage_node);
+    if !res.exchanged {
+        return false;
+    }
     _free(base_idx);
+    atomicStore(&world.svo_nodes[path_info.node_idx], goal);
     return true;
 }
 
@@ -97,7 +107,7 @@ fn _add_or_alloc_child(node_idx: u32, node: u32, child_info: _ChildInfo) -> _Add
     }
     base_idx = _alloc();
     if base_idx == 0u { return _AddChildResult(_OOM, 0u); }
-    let new_node = insertBits(node, base_idx, 0u, 23u) | child_info.mask;
+    let new_node = insertBits(node, base_idx, 0u, 22u) | child_info.mask;
     let res = atomicCompareExchangeWeak(&world.svo_nodes[node_idx], node, new_node);
     if res.exchanged { return _AddChildResult(base_idx + child_info.num, new_node); }
     _free(base_idx);
@@ -114,6 +124,7 @@ fn insert(pos: vec3u, chunk_idx: u32) {
 
     while height > 1u {
         let node = atomicLoad(&world.svo_nodes[node_idx]);
+        if (node & COLLAPSING_MASK) != 0u { continue; }
         let child_info = _child_info(pos, height);
         var child_idx = _child_idx(node, child_info);
         var new_node = node;

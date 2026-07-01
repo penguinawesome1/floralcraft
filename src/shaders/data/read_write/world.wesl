@@ -8,10 +8,11 @@ struct World {
     // Head of chunk free list.
     // Initially 1, 0 is reserved for null.
     chunks_free: atomic<u32>,
-    // Each node is like this: AAAA AAAA BCCC CCCC CCCC CCCC CCCC CCCC.
+    // Each node is like this: AAAA AAAA BCDD DDDD DDDD DDDD DDDD DDDD.
     // A: The child bit mask.
     // B: Whether the children are all uniform, relevant only if every child is present.
-    // C: The address of children or the uniform value if present.
+    // C: A mask to mark if the node is in the process of collapsing on a thread.
+    // D: The address of children or the uniform value if present.
     // There is no root, begin at first child.
     svo_nodes: array<atomic<u32>, SVO_NODES_CAPACITY>,
     chunks: array<Chunk, CHUNKS_CAPACITY>,
