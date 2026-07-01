@@ -9,7 +9,7 @@ class GameApp {
   private readonly renderer: Renderer;
   private progressText: HTMLElement;
   private animationFrameId = 0;
-  private isPaused = false;
+  private isPaused = true;
 
   constructor(canvas: HTMLCanvasElement, loadingScreen: HTMLDivElement) {
     this.canvas = canvas;
@@ -35,32 +35,54 @@ class GameApp {
 
     this.progressText.textContent = "Click to Start!";
     this.progressText.classList.add("pulsing");
-    this.animationFrameId = requestAnimationFrame(this.gameLoop);
     document.addEventListener("pointerlockchange", () => {
       if (document.pointerLockElement === this.canvas) {
-        this.loadingScreen.style.opacity = "0";
-        this.isPaused = false;
+        this.handleResume();
       } else {
-        this.isPaused = true;
+        this.handlePause();
       }
     });
-    this.loadingScreen.addEventListener("transitionend", () => {
-      this.loadingScreen.style.display = "none";
-    });
+  }
+
+  private handlePause() {
+    if (this.isPaused) {
+      return;
+    }
+    this.isPaused = true;
+
+    this.loadingScreen.classList.remove("hidden", "exiting");
+    this.progressText.textContent = "Click to Resume";
+    this.progressText.classList.remove("pulsing");
+
+    cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = 0;
+  }
+
+  private handleResume() {
+    if (!this.isPaused) {
+      return;
+    }
+    this.isPaused = false;
+
+    this.loadingScreen.classList.add("exiting");
+    this.loadingScreen.addEventListener(
+      "transitionend",
+      (e) => {
+        if (e.propertyName === "opacity") {
+          this.loadingScreen.classList.remove("exiting");
+          this.loadingScreen.classList.add("hidden");
+        }
+      },
+      { once: true },
+    );
+
+    if (!this.animationFrameId) {
+      this.animationFrameId = requestAnimationFrame(this.gameLoop);
+    }
   }
 
   private readonly gameLoop = (_time: number) => {
     const inputState = this.inputManager.poll();
-
-    if (this.isPaused) {
-      this.loadingScreen.style.opacity = "1";
-      this.loadingScreen.style.display = "flex";
-      this.progressText.textContent = "Click to Resume";
-      this.progressText.classList.remove("pulsing");
-      this.animationFrameId = requestAnimationFrame(this.gameLoop);
-      return;
-    }
-
     this.renderer.update(inputState);
     this.renderer.frame();
     this.animationFrameId = requestAnimationFrame(this.gameLoop);

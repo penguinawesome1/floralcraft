@@ -33,7 +33,16 @@
   pointer-events: none;
 
   opacity: 1;
-  transition: opacity 0.5s ease-in;
+  transition: all 0.5s ease-in allow-discrete;
+
+  &.exiting {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+  }
+
+  &.hidden {
+    display: none;
+  }
 
   .content {
     color: oklch(90% 0 0);
