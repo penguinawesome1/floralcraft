@@ -4,7 +4,7 @@ import raytraceWesl from "../shaders/raytrace.wesl?link";
 import renderWesl from "../shaders/render.wesl?link";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
-import { GEN_SIDE } from "../core/Config.ts";
+import { GEN_SIDE, CHUNK_SIDE_SHIFT, BITS_PER_ID } from "../core/Config.ts";
 
 export type Pipelines = {
   gen: GPUComputePipeline;
@@ -20,8 +20,14 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
-  const linkedGen = await link({ ...genWesl, constants: { GEN_SIDE } });
-  const linkedRaytrace = await link(raytraceWesl);
+  const linkedGen = await link({
+    ...genWesl,
+    constants: { GEN_SIDE, CHUNK_SIDE_SHIFT, BITS_PER_ID },
+  });
+  const linkedRaytrace = await link({
+    ...raytraceWesl,
+    constants: { GEN_SIDE, CHUNK_SIDE_SHIFT, BITS_PER_ID },
+  });
   const linkedRender = await link(renderWesl);
 
   const genModule = linkedGen.createShaderModule(weslDevice, {
@@ -45,7 +51,7 @@ export async function createPipelines(
     layout: pipeline_layouts.gen,
     compute: {
       module: genModule,
-      entryPoint: "cs_main",
+      entryPoint: "gen_chunk",
     },
   });
   const raytrace = device.createComputePipeline({

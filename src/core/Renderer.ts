@@ -10,7 +10,7 @@ import {
   type DynamicBindGroups,
   createStaticBindGroups,
 } from "../gpu/BindGroups.ts";
-import { type Buffers, createBuffers } from "../gpu/Buffers.ts";
+import { type Resources, createResources } from "../gpu/Resources.ts";
 import { type Pipelines, createPipelines } from "../gpu/Pipelines.ts";
 import { type Config, createConfig, GEN_SIDE } from "./Config.ts";
 
@@ -28,7 +28,7 @@ export class Renderer {
   private camera!: Camera;
   private config!: Config;
 
-  private buffers!: Buffers;
+  private resources!: Resources;
   private bindGroupLayouts!: BindGroupLayouts;
   private bindGroups!: BindGroups;
   private pipelines!: Pipelines;
@@ -76,11 +76,11 @@ export class Renderer {
     this.config = createConfig(this.device, { max_trace_dist: 100 });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
-    this.buffers = createBuffers(this.device);
+    this.resources = createResources(this.device);
     const staticBindGroups = createStaticBindGroups(
       this.device,
       this.bindGroupLayouts,
-      this.buffers,
+      this.resources,
     );
     this.bindGroups = { ...staticBindGroups } as BindGroups;
     this.pipelines = await createPipelines(
@@ -115,7 +115,9 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    this.encodeGenPass(commandEncoder, qSet);
+    if (this.frameCount == 5) {
+      this.encodeGenPass(commandEncoder, qSet);
+    }
     this.encodeRaytracePass(commandEncoder, qSet);
     this.encodeRenderPass(commandEncoder, qSet);
 
@@ -205,8 +207,7 @@ export class Renderer {
           : undefined,
     });
     pass.setPipeline(this.pipelines.gen);
-    pass.setBindGroup(0, this.bindGroups.read_write_world);
-    pass.setBindGroup(1, this.bindGroups.gen);
+    pass.setBindGroup(0, this.bindGroups.gen);
     pass.dispatchWorkgroups(GEN_SIDE, GEN_SIDE, GEN_SIDE);
     pass.end();
   }
@@ -227,8 +228,8 @@ export class Renderer {
           : undefined,
     });
     pass.setPipeline(this.pipelines.raytrace);
-    pass.setBindGroup(0, this.bindGroups.read_world);
-    pass.setBindGroup(1, this.bindGroups.raytrace);
+    pass.setBindGroup(0, this.bindGroups.raytraceStatic);
+    pass.setBindGroup(1, this.bindGroups.raytraceDynamic);
     pass.dispatchWorkgroups(
       Math.ceil(this.canvas.width / 8),
       Math.ceil(this.canvas.height / 8),
@@ -241,7 +242,7 @@ export class Renderer {
     querySet?: GPUQuerySet,
   ): void {
     const canvasTextureView = this.context.getCurrentTexture().createView();
-    const renderPass = commandEncoder.beginRenderPass({
+    const pass = commandEncoder.beginRenderPass({
       label: "render pass",
       timestampWrites:
         this.isProfilingMode && querySet
@@ -260,10 +261,10 @@ export class Renderer {
         },
       ],
     });
-    renderPass.setPipeline(this.pipelines.render);
-    renderPass.setBindGroup(0, this.bindGroups.render);
-    renderPass.draw(3);
-    renderPass.end();
+    pass.setPipeline(this.pipelines.render);
+    pass.setBindGroup(0, this.bindGroups.render);
+    pass.draw(3);
+    pass.end();
   }
 
   private resize(): void {
@@ -301,9 +302,9 @@ export class Renderer {
   private createDynamicBindGroups(): DynamicBindGroups {
     const renderTargetView = this.renderTarget.createView();
 
-    const raytrace = this.device.createBindGroup({
-      label: "raytrace bind group",
-      layout: this.bindGroupLayouts.raytrace,
+    const raytraceDynamic = this.device.createBindGroup({
+      label: "raytrace dynamic bind group",
+      layout: this.bindGroupLayouts.raytraceDynamic,
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: { buffer: this.camera.buffer } },
@@ -320,6 +321,6 @@ export class Renderer {
       ],
     });
 
-    return { raytrace, render };
+    return { raytraceDynamic, render };
   }
 }

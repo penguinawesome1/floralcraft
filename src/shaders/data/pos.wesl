@@ -1,4 +1,4 @@
-import package::config::{CHUNK_SIDE_SHIFT, SVO_DEPTH};
+import constants::{GEN_SIDE, CHUNK_SIDE_SHIFT};
 
 fn chunk(global_pos: vec3i) -> vec3i {
     return global_pos >> vec3u(CHUNK_SIDE_SHIFT);
@@ -14,5 +14,5 @@ fn local(global_pos: vec3i) -> vec3u {
 }
 
 fn is_in_bounds(global_pos: vec3i) -> bool {
-    return all(global_pos >= vec3i(0)) && all(global_pos < vec3i(i32(1u << (SVO_DEPTH + 2u))));
+    return all(global_pos >= vec3i(0)) && all(global_pos < vec3i(i32(1u << (GEN_SIDE + 2u))));
 }

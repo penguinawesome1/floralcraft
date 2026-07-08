@@ -1,4 +1,6 @@
-export const GEN_SIDE = 8;
+export const GEN_SIDE = 20;
+export const BITS_PER_ID = 8; // must be a factor of 32
+export const CHUNK_SIDE_SHIFT = 3;
 
 export type Config = {
   buffer: GPUBuffer;

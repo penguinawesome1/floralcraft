@@ -12,12 +12,12 @@ export function createPipelineLayouts(
 ): PipelineLayouts {
   const gen = device.createPipelineLayout({
     label: "gen pipeline layout",
-    bindGroupLayouts: [layouts.read_write_world, layouts.gen],
+    bindGroupLayouts: [layouts.gen],
   });
 
   const raytrace = device.createPipelineLayout({
     label: "raytrace pipeline layout",
-    bindGroupLayouts: [layouts.read_world, layouts.raytrace],
+    bindGroupLayouts: [layouts.raytraceStatic, layouts.raytraceDynamic],
   });
 
   const render = device.createPipelineLayout({

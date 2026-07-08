@@ -1,14 +1,13 @@
 import type { BindGroupLayouts } from "./BindGroupLayouts";
-import type { Buffers } from "./Buffers";
+import type { Resources } from "./Resources";
 
 export type StaticBindGroups = {
-  read_world: GPUBindGroup;
-  read_write_world: GPUBindGroup;
   gen: GPUBindGroup;
+  raytraceStatic: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
-  raytrace: GPUBindGroup;
+  raytraceDynamic: GPUBindGroup;
   render: GPUBindGroup;
 };
 
@@ -17,25 +16,38 @@ export type BindGroups = StaticBindGroups & DynamicBindGroups;
 export function createStaticBindGroups(
   device: GPUDevice,
   layouts: BindGroupLayouts,
-  buffers: Buffers,
+  resources: Resources,
 ): StaticBindGroups {
-  const read_world = device.createBindGroup({
-    label: "read world bind group",
-    layout: layouts.read_world,
-    entries: [{ binding: 0, resource: { buffer: buffers.world } }],
-  });
-
-  const read_write_world = device.createBindGroup({
-    label: "read write world bind group",
-    layout: layouts.read_write_world,
-    entries: [{ binding: 0, resource: { buffer: buffers.world } }],
-  });
-
   const gen = device.createBindGroup({
     label: "gen bind group",
     layout: layouts.gen,
-    entries: [{ binding: 0, resource: { buffer: buffers.gen } }],
+    entries: [
+      {
+        binding: 0,
+        resource: { buffer: resources.chunk_pool },
+      },
+      {
+        binding: 1,
+        resource: resources.chunk_index_map.createView(),
+      },
+      { binding: 2, resource: { buffer: resources.free_list } },
+    ],
   });
 
-  return { read_world, read_write_world, gen };
+  const raytraceStatic = device.createBindGroup({
+    label: "raytrace static bind group",
+    layout: layouts.raytraceStatic,
+    entries: [
+      {
+        binding: 0,
+        resource: { buffer: resources.chunk_pool },
+      },
+      {
+        binding: 1,
+        resource: resources.chunk_index_map.createView(),
+      },
+    ],
+  });
+
+  return { gen, raytraceStatic };
 }

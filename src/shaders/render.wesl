@@ -1,4 +1,4 @@
-struct VertexOutput {
+struct _VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) uv: vec2f,
 }
@@ -7,11 +7,11 @@ struct VertexOutput {
 @group(0) @binding(1) var s_canvas: sampler;
 
 @vertex
-fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
+fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> _VertexOutput {
     let x = f32((in_vertex_index & 1u) * 4u) - 1.0;
     let y = f32((in_vertex_index >> 1u) * 4u) - 1.0;
 
-    return VertexOutput(
+    return _VertexOutput(
         vec4f(x, y, 0.0, 1.0),
         vec2f(
             f32((in_vertex_index & 1u) * 2u),
@@ -21,6 +21,6 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+fn fs_main(in: _VertexOutput) -> @location(0) vec4f {
     return textureSample(t_canvas, s_canvas, in.uv);
 }

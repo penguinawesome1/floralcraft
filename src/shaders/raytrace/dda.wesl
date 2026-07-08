@@ -1,4 +1,4 @@
-import package::data::read::{chunk::{block_id, CHUNK_SIDE}, world};
+import package::data::map::lookup;
 import package::data::blocks;
 import package::config::config;
 
@@ -64,9 +64,9 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
 
-    let block_res = world::block(snapped_pos);
-    if block_res.id != blocks::AIR {
-        return TraceResult(ray.origin, block_res.id, NO_AXIS);
+    let lookup_res = lookup::lookup(snapped_pos);
+    if lookup_res.block_id != blocks::AIR {
+        return TraceResult(ray.origin, lookup_res.block_id, NO_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -86,12 +86,9 @@ fn trace(ray: Ray) -> TraceResult {
 
         if step_res.t > config.max_trace_dist { break; }
 
-        let block_res = world::block(snapped_pos);
-        // if block_res.height != 0u {
-        //     return TraceResult(ray.origin + ray.dir * step_res.t, block_res.height, step_res.last_hit_axis);
-        // }
-        if block_res.id != blocks::AIR {
-            return TraceResult(ray.origin + ray.dir * step_res.t, block_res.id, step_res.last_hit_axis);
+        let lookup_res = lookup::lookup(snapped_pos);
+        if lookup_res.block_id != blocks::AIR {
+            return TraceResult(ray.origin + ray.dir * step_res.t, lookup_res.block_id, step_res.last_hit_axis);
         }
     }
 

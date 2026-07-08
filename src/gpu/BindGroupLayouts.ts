@@ -1,52 +1,61 @@
 export type BindGroupLayouts = {
-  read_world: GPUBindGroupLayout;
-  read_write_world: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
-  raytrace: GPUBindGroupLayout;
+  raytraceStatic: GPUBindGroupLayout;
+  raytraceDynamic: GPUBindGroupLayout;
   render: GPUBindGroupLayout;
 };
 
 export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
-  const read_world = device.createBindGroupLayout({
-    label: "read world bind group layout",
+  const gen = device.createBindGroupLayout({
+    label: "gen bind group layout",
     entries: [
-      // world
+      // chunk_pool
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          access: "write-only",
+          format: "r32uint",
+          viewDimension: "3d",
+        },
+      },
+      // free_list
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+
+  const raytraceStatic = device.createBindGroupLayout({
+    label: "raytrace static bind group layout",
+    entries: [
+      // chunk_pool
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
       },
-    ],
-  });
-
-  const read_write_world = device.createBindGroupLayout({
-    label: "read write world bind group layout",
-    entries: [
-      // world
+      // chunk_index_map
       {
-        binding: 0,
+        binding: 1,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "storage" },
+        texture: { viewDimension: "3d", sampleType: "uint" },
       },
     ],
   });
 
-  const gen = device.createBindGroupLayout({
-    label: "gen bind group layout",
+  const raytraceDynamic = device.createBindGroupLayout({
+    label: "raytrace dynamic bind group layout",
     entries: [
-      // chunk presence
-      {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "storage" },
-      },
-    ],
-  });
-
-  const raytrace = device.createBindGroupLayout({
-    label: "raytrace bind group layout",
-    entries: [
-      // texture_storage_2d
+      // t_output
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
@@ -85,5 +94,5 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     ],
   });
 
-  return { read_world, read_write_world, gen, raytrace, render };
+  return { gen, raytraceStatic, raytraceDynamic, render };
 }
