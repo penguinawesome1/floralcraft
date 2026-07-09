@@ -1,5 +1,5 @@
 import package::data::map::lookup;
-import package::data::blocks;
+import package::data::{pos, blocks, chunk::read_pool};
 import package::config::config;
 
 const NO_AXIS = 0u;
@@ -63,18 +63,18 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
 // Finds the first non-air block the ray hits.
 fn trace(ray: Ray) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
-
-    let lookup_res = lookup::lookup(snapped_pos);
-    if lookup_res.block_id != blocks::AIR {
-        return TraceResult(ray.origin, lookup_res.block_id, NO_AXIS);
+    var chunk_pos = pos::chunk(snapped_pos);
+    var lookup_res = lookup::lookup(chunk_pos);
+    let local_pos = pos::local(snapped_pos);
+    let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
+    if bid != blocks::AIR {
+        return TraceResult(ray.origin, bid, NO_AXIS);
     }
 
     let grid_step = vec3i(sign(ray.dir));
     let delta_t = 1.0 / abs(ray.dir);
-
     let next_boundary = vec3f(snapped_pos) + vec3f(grid_step > vec3i(0));
     let raw_t_max = (next_boundary - ray.origin) / ray.dir;
-
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
     var last_hit_axis: u32;
 
@@ -83,12 +83,18 @@ fn trace(ray: Ray) -> TraceResult {
         t_max = step_res.t_max;
         snapped_pos = step_res.snapped_pos;
         last_hit_axis = step_res.last_hit_axis;
-
         if step_res.t > config.max_trace_dist { break; }
 
-        let lookup_res = lookup::lookup(snapped_pos);
-        if lookup_res.block_id != blocks::AIR {
-            return TraceResult(ray.origin + ray.dir * step_res.t, lookup_res.block_id, step_res.last_hit_axis);
+        let new_chunk_pos = pos::chunk(snapped_pos);
+        if any(new_chunk_pos != chunk_pos) {
+            chunk_pos = new_chunk_pos;
+            lookup_res = lookup::lookup(chunk_pos);
+        }
+
+        let local_pos = pos::local(snapped_pos);
+        let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
+        if bid != blocks::AIR {
+            return TraceResult(ray.origin + ray.dir * step_res.t, bid, step_res.last_hit_axis);
         }
     }
 
