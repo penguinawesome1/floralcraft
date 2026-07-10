@@ -20,6 +20,7 @@ struct TraceResult {
     hit_pos: vec3f,
     block_id: u32,
     last_hit_axis: u32,
+    distance: f32,
 }
 
 struct Ray {
@@ -68,7 +69,7 @@ fn trace(ray: Ray) -> TraceResult {
     let local_pos = pos::local(snapped_pos);
     let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
     if bid != blocks::AIR {
-        return TraceResult(ray.origin, bid, NO_AXIS);
+        return TraceResult(ray.origin, bid, NO_AXIS, 0.0);
     }
 
     let grid_step = vec3i(sign(ray.dir));
@@ -94,11 +95,11 @@ fn trace(ray: Ray) -> TraceResult {
         let local_pos = pos::local(snapped_pos);
         let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
         if bid != blocks::AIR {
-            return TraceResult(ray.origin + ray.dir * step_res.t, bid, step_res.last_hit_axis);
+            return TraceResult(ray.origin + ray.dir * step_res.t, bid, step_res.last_hit_axis, step_res.t);
         }
     }
 
-    return TraceResult(vec3f(0.0), blocks::AIR, NO_AXIS);
+    return TraceResult(vec3f(0.0), blocks::AIR, NO_AXIS, config.max_trace_dist);
 }
 
 fn axis_normal(axis: u32, dir: vec3f) -> vec3f {

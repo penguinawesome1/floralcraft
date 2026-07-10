@@ -12,7 +12,13 @@ import {
 } from "../gpu/BindGroups.ts";
 import { type Resources, createResources } from "../gpu/Resources.ts";
 import { type Pipelines, createPipelines } from "../gpu/Pipelines.ts";
-import { type Config, createConfig, GEN_SIDE } from "./Config.ts";
+import {
+  type Config,
+  createConfig,
+  GEN_SIDE,
+  DAY_LENGTH_SECONDS,
+} from "./Config.ts";
+import { Clock } from "../core/Clock.ts";
 
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 100;
@@ -27,6 +33,7 @@ export class Renderer {
   private renderTarget!: GPUTexture;
   private camera!: Camera;
   private config!: Config;
+  private clock: Clock;
 
   private resources!: Resources;
   private bindGroupLayouts!: BindGroupLayouts;
@@ -43,6 +50,7 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
+    this.clock = new Clock();
   }
 
   async init(): Promise<void> {
@@ -70,10 +78,13 @@ export class Renderer {
     this.camera = new Camera(
       this.device,
       0.002,
-      0.2,
+      14.0,
       vec3.fromValues(8, 20, 8),
     );
-    this.config = createConfig(this.device, { max_trace_dist: 100 });
+    this.config = createConfig(this.device, {
+      max_trace_dist: 200,
+      time_of_day: 0.5,
+    });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
     this.resources = createResources(this.device);
@@ -101,8 +112,10 @@ export class Renderer {
   }
 
   update(inputState: InputState): void {
-    // this.config.update(this.device.queue, { max_trace_dist: 50 });
-    this.camera.update(this.device.queue, inputState);
+    const deltaTime = this.clock.update();
+    let time_of_day = (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS) % 1;
+    this.config.update(this.device.queue, { time_of_day });
+    this.camera.update(this.device.queue, deltaTime, inputState);
   }
 
   frame(): void {

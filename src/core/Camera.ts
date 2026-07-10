@@ -33,10 +33,15 @@ export class Camera {
     return this._buffer;
   }
 
-  update(queue: GPUQueue, { keys, deltaX, deltaY }: InputState) {
+  update(
+    queue: GPUQueue,
+    deltaTime: number,
+    { keys, deltaX, deltaY }: InputState,
+  ) {
     this.yaw += deltaX * this.sensitivity;
     this.pitch += deltaY * this.sensitivity;
-    this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+    const MAX_PITCH = Math.PI / 2;
+    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
     this.updateRotation();
 
     const moveDir = vec3.create();
@@ -57,7 +62,7 @@ export class Camera {
 
     if (vec3.length(moveDir) > 0) {
       vec3.normalize(moveDir, moveDir);
-      vec3.scaleAndAdd(this.pos, this.pos, moveDir, this.speed);
+      vec3.scaleAndAdd(this.pos, this.pos, moveDir, this.speed * deltaTime);
     }
 
     this.updateUniform();
