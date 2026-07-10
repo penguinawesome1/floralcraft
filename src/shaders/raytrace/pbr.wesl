@@ -1,9 +1,12 @@
 import package::raytrace::dda::{TraceResult, Ray, axis_normal, trace};
-import package::raytrace::cam;
+import package::raytrace::{cam, sky};
 import package::data::blocks;
+import package::config::config;
 
 const PI = 3.1415;
 const NUDGE = 0.001;
+const FOG_DENSITY = 0.1;
+const FOG_CONVERGENCE: f32 = 5.0;
 
 struct BlockMaterial {
     albedo: vec3f,
@@ -55,20 +58,18 @@ fn get_color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
     var accumulated_color = vec3f(0.0);
     var throughput = vec3f(1.0); // Keeps track of how much light can survive the bounces
 
-    let MAX_BOUNCES = 10u;
+    let MAX_BOUNCES = 2u;
 
     for (var bounce = 0u; bounce < MAX_BOUNCES; bounce = bounce + 1u) {
         if current_res.block_id == 0u {
-            // Hit the sky: Add sky/ambient light modified by current throughput and break
-            let sky_color = vec3f(0.5, 0.7, 1.0) * 0.5;
-            accumulated_color += sky_color * throughput;
+            accumulated_color += sky::color(current_dir) * throughput;
             break;
         }
 
         let material = _block_material(current_res.block_id);
         let N = axis_normal(current_res.last_hit_axis, current_dir);
+        let L = sky::sun_dir();
         let V = -current_dir;
-        let L = normalize(vec3f(1.0, 2.0, 1.0)); // Direction to primary sun light
         let H = normalize(V + L);
 
         // --- 1. Calculate Direct Contribution (Sun Light & Shadows) ---
@@ -115,9 +116,20 @@ fn get_color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         }
     }
 
-    // --- 3. Post-Processing ---
     let mapped = accumulated_color / (accumulated_color + vec3f(1.0));
-    let out = pow(mapped, vec3f(1.0 / 2.2));
+    let hit_distance = distance(cam.pos, initial_res.hit_pos);
+    let gamma_corrected = pow(mapped, vec3f(1.0 / 2.2));
+    let fog_near = 0.5 * config.max_trace_dist;
 
+    if hit_distance < fog_near {
+        return vec4f(gamma_corrected, 1.0);
+    }
+
+    let fog_range = config.max_trace_dist - fog_near;
+    let fog_density = FOG_CONVERGENCE / fog_range;
+    let fog_t = clamp((hit_distance - fog_near) / fog_range, 0.0, 1.0);
+    let fog_factor = fog_t * fog_t;
+    let sky_color = sky::color(current_dir);
+    let out = mix(gamma_corrected, sky_color, fog_factor);
     return vec4f(out, 1.0);
 }
