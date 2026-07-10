@@ -128,7 +128,7 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    if (this.frameCount == 5) {
+    if (this.frameCount === 0) {
       this.encodeGenPass(commandEncoder, qSet);
     }
     this.encodeRaytracePass(commandEncoder, qSet);
