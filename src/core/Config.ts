@@ -1,7 +1,7 @@
 export const GEN_SIDE = 40;
 export const BITS_PER_ID = 8; // must be a factor of 32
 export const CHUNK_SIDE_SHIFT = 3;
-export const DAY_LENGTH_SECONDS = 10;
+export const DAY_LENGTH_SECONDS = 600;
 
 export type Config = {
   buffer: GPUBuffer;
@@ -10,14 +10,14 @@ export type Config = {
 };
 
 type ConfigValues = {
-  max_trace_dist: number;
-  time_of_day: number;
+  maxTraceDist: number;
+  timeOfDay: number;
 };
 
 export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
   const uniformData = new Float32Array([
-    initial.max_trace_dist,
-    initial.time_of_day,
+    initial.maxTraceDist,
+    initial.timeOfDay,
   ]);
 
   const buffer = device.createBuffer({
@@ -31,12 +31,12 @@ export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
   function update(queue: GPUQueue, values: Partial<ConfigValues>) {
     let dirty = false;
 
-    if (values.max_trace_dist !== undefined) {
-      uniformData[0] = values.max_trace_dist;
+    if (values.maxTraceDist !== undefined) {
+      uniformData[0] = values.maxTraceDist;
       dirty = true;
     }
-    if (values.time_of_day !== undefined) {
-      uniformData[1] = values.time_of_day;
+    if (values.timeOfDay !== undefined) {
+      uniformData[1] = values.timeOfDay;
       dirty = true;
     }
 

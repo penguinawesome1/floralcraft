@@ -21,7 +21,7 @@ import {
 import { Clock } from "../core/Clock.ts";
 
 const RING_SIZE = 10;
-const RESIZE_DEBOUNCE_MS = 100;
+const RESIZE_DEBOUNCE_MS = 200;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
@@ -34,6 +34,7 @@ export class Renderer {
   private camera!: Camera;
   private config!: Config;
   private clock: Clock;
+  private maxTraceDist = 200;
 
   private resources!: Resources;
   private bindGroupLayouts!: BindGroupLayouts;
@@ -82,8 +83,8 @@ export class Renderer {
       vec3.fromValues(8, 20, 8),
     );
     this.config = createConfig(this.device, {
-      max_trace_dist: 200,
-      time_of_day: 0.5,
+      maxTraceDist: this.maxTraceDist,
+      timeOfDay: 0.5,
     });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
@@ -112,9 +113,21 @@ export class Renderer {
   }
 
   update(inputState: InputState): void {
+    if (inputState.keys.has("BracketLeft")) {
+      this.maxTraceDist /= 1.1;
+      this.maxTraceDist = Math.max(50, this.maxTraceDist);
+    }
+    if (inputState.keys.has("BracketRight")) {
+      this.maxTraceDist *= 1.1;
+      this.maxTraceDist = Math.min(2000, this.maxTraceDist);
+    }
+
     const deltaTime = this.clock.update();
-    let time_of_day = (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS) % 1;
-    this.config.update(this.device.queue, { time_of_day });
+    let timeOfDay = (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
+    this.config.update(this.device.queue, {
+      timeOfDay,
+      maxTraceDist: this.maxTraceDist,
+    });
     this.camera.update(this.device.queue, deltaTime, inputState);
   }
 
