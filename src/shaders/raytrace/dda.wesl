@@ -67,6 +67,9 @@ fn trace(ray: Ray) -> TraceResult {
     var chunk_pos = pos::chunk(snapped_pos);
     var lookup_res = lookup::lookup(chunk_pos);
     let local_pos = pos::local(snapped_pos);
+    if !lookup_res.is_loaded {
+        return TraceResult(ray.origin, blocks::AIR, NO_AXIS, 0.0);
+    }
     let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
     if bid != blocks::AIR {
         return TraceResult(ray.origin, bid, NO_AXIS, 0.0);
@@ -79,7 +82,7 @@ fn trace(ray: Ray) -> TraceResult {
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
     var last_hit_axis: u32;
 
-    for (var i = 0u; i < 1000u; i++) {
+    for (var i = 0u; i < 3000u; i++) {
         let step_res = step(t_max, snapped_pos, delta_t, grid_step);
         t_max = step_res.t_max;
         snapped_pos = step_res.snapped_pos;
@@ -90,6 +93,9 @@ fn trace(ray: Ray) -> TraceResult {
         if any(new_chunk_pos != chunk_pos) {
             chunk_pos = new_chunk_pos;
             lookup_res = lookup::lookup(chunk_pos);
+            if !lookup_res.is_loaded {
+                return TraceResult(ray.origin, blocks::AIR, NO_AXIS, 0.0);
+            }
         }
 
         let local_pos = pos::local(snapped_pos);

@@ -1,0 +1,25 @@
+import constants::MAX_CHUNK_BATCH_SIZE;
+import package::data::flags::GEN_FLAGS_CAPACITY;
+
+struct LoadList {
+    len: atomic<u32>,
+    indices: array<u32, MAX_CHUNK_BATCH_SIZE>,
+}
+
+@group(0) @binding(0) var<storage, read> gen_flags: array<u32, GEN_FLAGS_CAPACITY>;
+@group(0) @binding(1) var<storage, read_write> load_list: LoadList;
+
+@compute @workgroup_size(64, 1, 1)
+fn compact_load_set(@builtin(global_invocation_id) id: vec3u) {
+    let word_idx = id.x;
+    if word_idx >= GEN_FLAGS_CAPACITY { return; }
+    var word = gen_flags[word_idx];
+    while word != 0u {
+        let bit = firstTrailingBit(word);
+        let linear_idx = word_idx * 32u + bit;
+        let slot = atomicAdd(&load_list.len, 1u);
+        if slot >= MAX_CHUNK_BATCH_SIZE { return; }
+        load_list.indices[slot] = linear_idx;
+        word &= word - 1u;
+    }
+}

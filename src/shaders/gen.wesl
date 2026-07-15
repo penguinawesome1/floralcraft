@@ -1,6 +1,6 @@
 import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
-import package::data::{chunk::alloc, map::insert, noise, blocks};
-import package::data::map::lookup::EMPTY;
+import package::data::{chunk::alloc, noise, blocks, flags::ALL_AIR, flags, pos};
+import package::data::map::{insert, insert::cam};
 
 const _CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const _CHUNK_VOLUME = _CHUNK_SIDE * _CHUNK_SIDE * _CHUNK_SIDE;
@@ -8,14 +8,20 @@ const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
 const _COL_LEN = _CHUNK_SIDE / _IDS_PER_WORD;
 
+struct _LoadList {
+    len: u32,
+    indices: array<u32>,
+}
+
 @group(0) @binding(0) var<storage, read_write> chunk_pool: array<u32>;
+@group(0) @binding(4) var<storage, read> load_list: _LoadList;
 
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
     let origin_pos = chunk_pos * i32(_CHUNK_SIDE);
     let pos = vec2f(origin_pos.xz + vec2i(column_pos.xz)) * 0.04;
     let noise_normalized = noise::simplex2d(pos) * 0.5 + 0.5;
     let scaled = i32(noise_normalized * 50.0);
-    var col_is_empty = true;
+    var col_is_air = true;
     for (var i = 0u; i < _COL_LEN; i++) {
         let word_base_y = origin_pos.y + i32(i * _IDS_PER_WORD);
         for (var j = 0u; j < _IDS_PER_WORD; j++) {
@@ -30,34 +36,44 @@ fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u3
 
             (*temp)[i] = insertBits((*temp)[i], block_id, j * BITS_PER_ID, BITS_PER_ID);
         }
-        if (*temp)[i] != 0u { col_is_empty = false; }
+        if (*temp)[i] != 0u { col_is_air = false; }
     }
-    return col_is_empty;
+    return col_is_air;
 }
 
 var<workgroup> is_alive: bool;
-var<workgroup> chunk_is_empty: bool;
+var<workgroup> chunk_is_air: atomic<u32>;
 var<workgroup> chunk_num: u32;
 
 @compute @workgroup_size(_CHUNK_SIDE, 1, _CHUNK_SIDE)
 fn gen_chunk(
     @builtin(local_invocation_index) lid: u32,
     @builtin(local_invocation_id) column_pos: vec3u,
-    @builtin(workgroup_id) chunk_pos: vec3u
+    @builtin(workgroup_id) wgid: vec3u
 ) {
+    let wrapped = flags::wrapped_chunk(load_list.indices[wgid.x]);
+    let player_chunk = pos::chunk(vec3i(cam.pos));
+    let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
-        is_alive = alloc::has_free_slot();
-        chunk_is_empty = true;
+        if chunk_pos.y > 10i {
+            insert::insert(chunk_pos, ALL_AIR);
+            is_alive = false;
+        } else {
+            is_alive = alloc::has_free_slot();
+            atomicStore(&chunk_is_air, 1u);
+        }
     }
     workgroupBarrier();
     var temp = array<u32, _COL_LEN>();
-    if is_alive && !_gen_column(vec3i(chunk_pos), column_pos, &temp) {
-        chunk_is_empty = false;
+    if is_alive && !_gen_column(chunk_pos, column_pos, &temp) {
+        if atomicLoad(&chunk_is_air) == 1u {
+            atomicMin(&chunk_is_air, 0u);
+        }
     }
     workgroupBarrier();
     if is_alive && lid == 0u {
-        if chunk_is_empty {
-            insert::insert(vec3i(chunk_pos), EMPTY);
+        if atomicLoad(&chunk_is_air) == 1u {
+            insert::insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {
             chunk_num = alloc::alloc();
@@ -75,6 +91,6 @@ fn gen_chunk(
     }
     workgroupBarrier();
     if is_alive && lid == 0u {
-        insert::insert(vec3i(chunk_pos), chunk_num);
+        insert::insert(chunk_pos, chunk_num);
     }
 }

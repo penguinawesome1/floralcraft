@@ -1,7 +1,7 @@
 import package::config::{Config, IS_DEBUG_MODE};
 import package::data::blocks;
 import package::raytrace::dda::{Ray, trace, X_AXIS, Y_AXIS};
-import package::raytrace::{sky, pbr::get_color};
+import package::raytrace::{sky, pbr};
 
 struct Camera {
     pos: vec3f,
@@ -45,6 +45,5 @@ fn cs_main(@builtin(global_invocation_id) px: vec3u) {
         return;
     }
 
-    let color = get_color(dir, res);
-    textureStore(t_output, px.xy, color);
+    textureStore(t_output, px.xy, pbr::color(dir, res));
 }

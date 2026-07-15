@@ -93,6 +93,7 @@ export class Renderer {
       this.device,
       this.bindGroupLayouts,
       this.resources,
+      this.camera,
     );
     this.bindGroups = { ...staticBindGroups } as BindGroups;
     this.pipelines = await createPipelines(
@@ -114,11 +115,11 @@ export class Renderer {
 
   update(inputState: InputState): void {
     if (inputState.keys.has("BracketLeft")) {
-      this.maxTraceDist /= 1.1;
+      this.maxTraceDist /= 1.05;
       this.maxTraceDist = Math.max(50, this.maxTraceDist);
     }
     if (inputState.keys.has("BracketRight")) {
-      this.maxTraceDist *= 1.1;
+      this.maxTraceDist *= 1.05;
       this.maxTraceDist = Math.min(2000, this.maxTraceDist);
     }
 
@@ -141,17 +142,19 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    if (this.frameCount === 0) {
-      this.encodeGenPass(commandEncoder, qSet);
-    }
+    this.encodeCompactPass(commandEncoder, qSet);
+    this.encodeIndirectPass(commandEncoder);
+    this.encodeGenPass(commandEncoder, qSet);
+    commandEncoder.clearBuffer(this.resources.gen_flags);
+    commandEncoder.clearBuffer(this.resources.load_list);
     this.encodeRaytracePass(commandEncoder, qSet);
     this.encodeRenderPass(commandEncoder, qSet);
 
     if (qSet) {
       const qBuf = this.queryBuffers[ringIdx];
       const rBuf = this.readBuffers[ringIdx];
-      commandEncoder.resolveQuerySet(qSet, 0, 6, qBuf, 0);
-      commandEncoder.copyBufferToBuffer(qBuf, 0, rBuf, 0, 48);
+      commandEncoder.resolveQuerySet(qSet, 0, 8, qBuf, 0);
+      commandEncoder.copyBufferToBuffer(qBuf, 0, rBuf, 0, 64);
     }
 
     this.device.queue.submit([commandEncoder.finish()]);
@@ -180,23 +183,26 @@ export class Renderer {
     const timestamps = new BigInt64Array(arrayBuffer.slice(0));
     rBuf.unmap();
 
-    const genMilliseconds = Number(timestamps[1] - timestamps[0]) / 1_000_000;
+    const compactMilliseconds =
+      Number(timestamps[1] - timestamps[0]) / 1_000_000;
+    const genMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
     const raytraceMilliseconds =
-      Number(timestamps[3] - timestamps[2]) / 1_000_000;
-    const renderMilliseconds =
       Number(timestamps[5] - timestamps[4]) / 1_000_000;
+    const renderMilliseconds =
+      Number(timestamps[7] - timestamps[6]) / 1_000_000;
 
     console.log(`
+       Compact Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
        Render Pass: ${renderMilliseconds.toFixed(4)} ms
      `);
   }
 
-  private createProfilingResources() {
+  private createProfilingResources(): void {
     if (!this.isProfilingMode) return;
 
-    const capacity = 6;
+    const capacity = 8;
     for (let i = 0; i < RING_SIZE; i++) {
       this.querySets.push(
         this.device.createQuerySet({ type: "timestamp", count: capacity }),
@@ -217,6 +223,36 @@ export class Renderer {
     }
   }
 
+  private encodeCompactPass(
+    commandEncoder: GPUCommandEncoder,
+    querySet?: GPUQuerySet,
+  ): void {
+    const pass = commandEncoder.beginComputePass({
+      label: "compact pass",
+      timestampWrites:
+        this.isProfilingMode && querySet
+          ? {
+              querySet,
+              beginningOfPassWriteIndex: 0,
+              endOfPassWriteIndex: 1,
+            }
+          : undefined,
+    });
+    pass.setPipeline(this.pipelines.compact);
+    pass.setBindGroup(0, this.bindGroups.compact);
+    const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
+    pass.dispatchWorkgroups(Math.ceil(totalWords / 64), 1, 1);
+    pass.end();
+  }
+
+  private encodeIndirectPass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass({ label: "indirect pass" });
+    pass.setPipeline(this.pipelines.indirect);
+    pass.setBindGroup(0, this.bindGroups.indirect);
+    pass.dispatchWorkgroups(1, 1, 1);
+    pass.end();
+  }
+
   private encodeGenPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
@@ -227,14 +263,14 @@ export class Renderer {
         this.isProfilingMode && querySet
           ? {
               querySet,
-              beginningOfPassWriteIndex: 0,
-              endOfPassWriteIndex: 1,
+              beginningOfPassWriteIndex: 2,
+              endOfPassWriteIndex: 3,
             }
           : undefined,
     });
     pass.setPipeline(this.pipelines.gen);
     pass.setBindGroup(0, this.bindGroups.gen);
-    pass.dispatchWorkgroups(GEN_SIDE, GEN_SIDE, GEN_SIDE);
+    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
     pass.end();
   }
 
@@ -248,8 +284,8 @@ export class Renderer {
         this.isProfilingMode && querySet
           ? {
               querySet,
-              beginningOfPassWriteIndex: 2,
-              endOfPassWriteIndex: 3,
+              beginningOfPassWriteIndex: 4,
+              endOfPassWriteIndex: 5,
             }
           : undefined,
     });
@@ -274,8 +310,8 @@ export class Renderer {
         this.isProfilingMode && querySet
           ? {
               querySet,
-              beginningOfPassWriteIndex: 4,
-              endOfPassWriteIndex: 5,
+              beginningOfPassWriteIndex: 6,
+              endOfPassWriteIndex: 7,
             }
           : undefined,
       colorAttachments: [
