@@ -7,8 +7,8 @@ export type BindGroupLayouts = {
   render: GPUBindGroupLayout;
 };
 
-export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
-  const compact = device.createBindGroupLayout({
+function createCompactLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "compact bind group layout",
     entries: [
       // gen_flags
@@ -25,8 +25,10 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
       },
     ],
   });
+}
 
-  const indirect = device.createBindGroupLayout({
+function createIndirectLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "indirect bind group layout",
     entries: [
       // indirect_args
@@ -43,8 +45,10 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
       },
     ],
   });
+}
 
-  const gen = device.createBindGroupLayout({
+function createGenLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "gen bind group layout",
     entries: [
       // chunk_pool
@@ -81,10 +85,18 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
       },
+      // skip_mips
+      {
+        binding: 5,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
     ],
   });
+}
 
-  const raytraceStatic = device.createBindGroupLayout({
+function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "raytrace static bind group layout",
     entries: [
       // chunk_pool
@@ -105,10 +117,18 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
+      // skip_mips
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
     ],
   });
+}
 
-  const raytraceDynamic = device.createBindGroupLayout({
+function createRaytraceDynamicLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "raytrace dynamic bind group layout",
     entries: [
       // t_output
@@ -131,8 +151,10 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
       },
     ],
   });
+}
 
-  const render = device.createBindGroupLayout({
+function createRenderLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
     label: "render bind group layout",
     entries: [
       // t_canvas
@@ -149,6 +171,15 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
       },
     ],
   });
+}
 
-  return { compact, indirect, gen, raytraceStatic, raytraceDynamic, render };
+export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
+  return {
+    compact: createCompactLayout(device),
+    indirect: createIndirectLayout(device),
+    gen: createGenLayout(device),
+    raytraceStatic: createRaytraceStaticLayout(device),
+    raytraceDynamic: createRaytraceDynamicLayout(device),
+    render: createRenderLayout(device),
+  };
 }

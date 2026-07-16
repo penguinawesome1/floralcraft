@@ -16,75 +16,83 @@ export type DynamicBindGroups = {
 
 export type BindGroups = StaticBindGroups & DynamicBindGroups;
 
+function createCompactGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+) {
+  return device.createBindGroup({
+    label: "compact bind group",
+    layout: layouts.compact,
+    entries: [
+      { binding: 0, resource: { buffer: resources.gen_flags } },
+      { binding: 1, resource: { buffer: resources.load_list } },
+    ],
+  });
+}
+
+function createIndirectGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+) {
+  return device.createBindGroup({
+    label: "indirect bind group",
+    layout: layouts.indirect,
+    entries: [
+      { binding: 0, resource: { buffer: resources.indirect_args } },
+      { binding: 1, resource: { buffer: resources.load_list } },
+    ],
+  });
+}
+
+function createGenGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+  camera: Camera,
+) {
+  return device.createBindGroup({
+    label: "gen bind group",
+    layout: layouts.gen,
+    entries: [
+      { binding: 0, resource: { buffer: resources.chunk_pool } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.free_list } },
+      { binding: 3, resource: { buffer: camera.buffer } },
+      { binding: 4, resource: { buffer: resources.load_list } },
+      { binding: 5, resource: { buffer: resources.skip_mips } },
+    ],
+  });
+}
+
+function createRaytraceStaticGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+) {
+  return device.createBindGroup({
+    label: "raytrace static bind group",
+    layout: layouts.raytraceStatic,
+    entries: [
+      { binding: 0, resource: { buffer: resources.chunk_pool } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.gen_flags } },
+      { binding: 3, resource: { buffer: resources.skip_mips } },
+    ],
+  });
+}
+
 export function createStaticBindGroups(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
   camera: Camera,
 ): StaticBindGroups {
-  const compact = device.createBindGroup({
-    label: "compact bind group",
-    layout: layouts.compact,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: resources.gen_flags },
-      },
-      {
-        binding: 1,
-        resource: { buffer: resources.load_list },
-      },
-    ],
-  });
-
-  const indirect = device.createBindGroup({
-    label: "indirect bind group",
-    layout: layouts.indirect,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: resources.indirect_args },
-      },
-      {
-        binding: 1,
-        resource: { buffer: resources.load_list },
-      },
-    ],
-  });
-
-  const gen = device.createBindGroup({
-    label: "gen bind group",
-    layout: layouts.gen,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: resources.chunk_pool },
-      },
-      {
-        binding: 1,
-        resource: resources.chunk_index_map.createView(),
-      },
-      { binding: 2, resource: { buffer: resources.free_list } },
-      { binding: 3, resource: { buffer: camera.buffer } },
-      { binding: 4, resource: { buffer: resources.load_list } },
-    ],
-  });
-
-  const raytraceStatic = device.createBindGroup({
-    label: "raytrace static bind group",
-    layout: layouts.raytraceStatic,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: resources.chunk_pool },
-      },
-      {
-        binding: 1,
-        resource: resources.chunk_index_map.createView(),
-      },
-      { binding: 2, resource: resources.gen_flags },
-    ],
-  });
-
-  return { compact, indirect, gen, raytraceStatic };
+  return {
+    compact: createCompactGroup(device, layouts, resources),
+    indirect: createIndirectGroup(device, layouts, resources),
+    gen: createGenGroup(device, layouts, resources, camera),
+    raytraceStatic: createRaytraceStaticGroup(device, layouts, resources),
+  };
 }

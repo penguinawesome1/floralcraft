@@ -1,4 +1,4 @@
-import { link, makeWeslDevice } from "wesl";
+import { link, makeWeslDevice, type LinkParams } from "wesl";
 import compactWesl from "../shaders/compact.wesl?link";
 import indirectWesl from "../shaders/indirect.wesl?link";
 import genWesl from "../shaders/gen.wesl?link";
@@ -6,13 +6,7 @@ import raytraceWesl from "../shaders/raytrace.wesl?link";
 import renderWesl from "../shaders/render.wesl?link";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
-import {
-  GEN_SIDE,
-  CHUNK_SIDE_SHIFT,
-  BITS_PER_ID,
-  MAX_CHUNK_BATCH_SIZE,
-  MAX_CHUNKS_LOADED,
-} from "../core/Config.ts";
+import { SHADER_CONFIG } from "../core/Config.ts";
 
 export type Pipelines = {
   compact: GPUComputePipeline;
@@ -22,118 +16,15 @@ export type Pipelines = {
   render: GPURenderPipeline;
 };
 
-export async function createPipelines(
-  device: GPUDevice,
-  format: GPUTextureFormat,
-  bind_group_layouts: BindGroupLayouts,
-  is_debug_mode: boolean,
-): Promise<Pipelines> {
-  const weslDevice = makeWeslDevice(device);
-
-  const SHADER_CONFIG = {
-    GEN_SIDE,
-    MAX_CHUNK_BATCH_SIZE,
-    CHUNK_SIDE_SHIFT,
-    BITS_PER_ID,
-    MAX_CHUNKS_LOADED,
-  };
-
-  const compactLoad = await link({
-    ...compactWesl,
-    constants: SHADER_CONFIG,
-  });
-  const indirectLoad = await link({
-    ...indirectWesl,
-    constants: SHADER_CONFIG,
-  });
-  const linkedGen = await link({
-    ...genWesl,
-    constants: SHADER_CONFIG,
-  });
-  const linkedRaytrace = await link({
-    ...raytraceWesl,
-    constants: SHADER_CONFIG,
-  });
-  const linkedRender = await link(renderWesl);
-
-  const compactModule = compactLoad.createShaderModule(weslDevice, {
-    label: "compact shader module",
-  });
-  const indirectModule = indirectLoad.createShaderModule(weslDevice, {
-    label: "indirect shader module",
-  });
-  const genModule = linkedGen.createShaderModule(weslDevice, {
-    label: "gen shader module",
-  });
-  const raytraceModule = linkedRaytrace.createShaderModule(weslDevice, {
-    label: "raytrace shader module",
-  });
-  const renderModule = linkedRender.createShaderModule(weslDevice, {
-    label: "render shader module",
-  });
-
-  await Promise.all(
-    [
-      compactModule,
-      indirectModule,
-      genModule,
-      raytraceModule,
-      renderModule,
-    ].map(validateShader),
-  );
-
-  const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
-
-  const compact = device.createComputePipeline({
-    label: "compact pipeline",
-    layout: pipeline_layouts.compact,
-    compute: {
-      module: compactModule,
-      entryPoint: "compact_load_set",
-    },
-  });
-
-  const indirect = device.createComputePipeline({
-    label: "indirect pipeline",
-    layout: pipeline_layouts.indirect,
-    compute: {
-      module: indirectModule,
-      entryPoint: "write_indirect_args",
-    },
-  });
-
-  const gen = device.createComputePipeline({
-    label: "gen pipeline",
-    layout: pipeline_layouts.gen,
-    compute: {
-      module: genModule,
-      entryPoint: "gen_chunk",
-    },
-  });
-
-  const raytrace = device.createComputePipeline({
-    label: "raytrace pipeline",
-    layout: pipeline_layouts.raytrace,
-    compute: {
-      module: raytraceModule,
-      entryPoint: "cs_main",
-      constants: { IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
-    },
-  });
-
-  const render = device.createRenderPipeline({
-    label: "render pipeline",
-    layout: pipeline_layouts.render,
-    vertex: { module: renderModule, entryPoint: "vs_main" },
-    fragment: {
-      module: renderModule,
-      entryPoint: "fs_main",
-      targets: [{ format }],
-    },
-    primitive: { topology: "triangle-list" },
-  });
-
-  return { compact, indirect, gen, raytrace, render };
+async function loadShaderModule(
+  weslDevice: ReturnType<typeof makeWeslDevice>,
+  weslSource: LinkParams,
+  label: string,
+): Promise<GPUShaderModule> {
+  const linked = await link({ ...weslSource, constants: SHADER_CONFIG });
+  const module = linked.createShaderModule(weslDevice, { label });
+  await validateShader(module);
+  return module;
 }
 
 async function validateShader(module: GPUShaderModule) {
@@ -144,4 +35,139 @@ async function validateShader(module: GPUShaderModule) {
       console.error(`WGSL error line ${e.lineNum}: ${e.message}`);
     throw new Error("Shader compilation failed");
   }
+}
+
+function createCompactPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "compact pipeline",
+    layout,
+    compute: { module, entryPoint: "compact_load_set" },
+  });
+}
+
+function createIndirectPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "indirect pipeline",
+    layout,
+    compute: { module, entryPoint: "write_indirect_args" },
+  });
+}
+
+function createGenPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "gen pipeline",
+    layout,
+    compute: { module, entryPoint: "gen_chunk" },
+  });
+}
+
+function createRaytracePipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+  is_debug_mode: boolean,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "raytrace pipeline",
+    layout,
+    compute: {
+      module,
+      entryPoint: "cs_main",
+      constants: { IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
+    },
+  });
+}
+
+function createRenderPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+  format: GPUTextureFormat,
+): GPURenderPipeline {
+  return device.createRenderPipeline({
+    label: "render pipeline",
+    layout,
+    vertex: { module, entryPoint: "vs_main" },
+    fragment: {
+      module,
+      entryPoint: "fs_main",
+      targets: [{ format }],
+    },
+    primitive: { topology: "triangle-list" },
+  });
+}
+
+export async function createPipelines(
+  device: GPUDevice,
+  format: GPUTextureFormat,
+  bind_group_layouts: BindGroupLayouts,
+  is_debug_mode: boolean,
+): Promise<Pipelines> {
+  const weslDevice = makeWeslDevice(device);
+
+  const compactModule = await loadShaderModule(
+    weslDevice,
+    compactWesl,
+    "compact shader module",
+  );
+  const indirectModule = await loadShaderModule(
+    weslDevice,
+    indirectWesl,
+    "indirect shader module",
+  );
+  const genModule = await loadShaderModule(
+    weslDevice,
+    genWesl,
+    "gen shader module",
+  );
+  const raytraceModule = await loadShaderModule(
+    weslDevice,
+    raytraceWesl,
+    "raytrace shader module",
+  );
+  const renderModule = await loadShaderModule(
+    weslDevice,
+    renderWesl,
+    "render shader module",
+  );
+
+  const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
+
+  return {
+    compact: createCompactPipeline(
+      device,
+      pipeline_layouts.compact,
+      compactModule,
+    ),
+    indirect: createIndirectPipeline(
+      device,
+      pipeline_layouts.indirect,
+      indirectModule,
+    ),
+    gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
+    raytrace: createRaytracePipeline(
+      device,
+      pipeline_layouts.raytrace,
+      raytraceModule,
+      is_debug_mode,
+    ),
+    render: createRenderPipeline(
+      device,
+      pipeline_layouts.render,
+      renderModule,
+      format,
+    ),
+  };
 }

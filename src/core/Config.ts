@@ -5,6 +5,40 @@ export const DAY_LENGTH_SECONDS = 600;
 export const MAX_CHUNK_BATCH_SIZE = 8192;
 export const MAX_CHUNKS_LOADED = 64_000;
 
+export const CHUNK_LEN = Math.ceil(
+  ((1 << CHUNK_SIDE_SHIFT) ** 3 * BITS_PER_ID) / 32,
+);
+
+function mipWordCount(regionSize: number): number {
+  return Math.ceil(Math.ceil(GEN_SIDE / regionSize) ** 3 / 32);
+}
+
+const MIP_CAPACITY_L1 = mipWordCount(2);
+const MIP_CAPACITY_L2 = mipWordCount(4);
+const MIP_CAPACITY_L3 = mipWordCount(8);
+const MIP_CAPACITY_L4 = mipWordCount(16);
+const MIP_CAPACITY_L5 = mipWordCount(32);
+
+export const MIP_TOTAL_CAPACITY =
+  MIP_CAPACITY_L1 +
+  MIP_CAPACITY_L2 +
+  MIP_CAPACITY_L3 +
+  MIP_CAPACITY_L4 +
+  MIP_CAPACITY_L5;
+
+export const SHADER_CONFIG = {
+  GEN_SIDE,
+  MAX_CHUNK_BATCH_SIZE,
+  CHUNK_SIDE_SHIFT,
+  BITS_PER_ID,
+  MAX_CHUNKS_LOADED,
+  MIP_CAPACITY_L1,
+  MIP_CAPACITY_L2,
+  MIP_CAPACITY_L3,
+  MIP_CAPACITY_L4,
+  MIP_CAPACITY_L5,
+} as const;
+
 export type Config = {
   buffer: GPUBuffer;
   uniformData: Float32Array;
