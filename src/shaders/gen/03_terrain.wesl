@@ -1,6 +1,6 @@
 import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
-import package::data::{chunk::alloc, noise, blocks, flags::ALL_AIR, flags, pos};
-import package::data::map::{insert, insert::cam};
+import package::core::{pos, blocks, noise, flags, flags::ALL_AIR};
+import package::gen::support::{insert, insert::cam, alloc, load_list::LoadListView};
 
 const _CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const _CHUNK_VOLUME = _CHUNK_SIDE * _CHUNK_SIDE * _CHUNK_SIDE;
@@ -8,13 +8,8 @@ const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
 const _COL_LEN = _CHUNK_SIDE / _IDS_PER_WORD;
 
-struct _LoadList {
-    len: u32,
-    indices: array<u32>,
-}
-
 @group(0) @binding(0) var<storage, read_write> chunk_pool: array<u32>;
-@group(0) @binding(4) var<storage, read> load_list: _LoadList;
+@group(0) @binding(4) var<storage, read> load_list: LoadListView;
 
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
     let origin_pos = chunk_pos * i32(_CHUNK_SIDE);
@@ -66,9 +61,7 @@ fn gen_chunk(
     workgroupBarrier();
     var temp = array<u32, _COL_LEN>();
     if is_alive && !_gen_column(chunk_pos, column_pos, &temp) {
-        if atomicLoad(&chunk_is_air) == 1u {
-            atomicMin(&chunk_is_air, 0u);
-        }
+        atomicMin(&chunk_is_air, 0u);
     }
     workgroupBarrier();
     if is_alive && lid == 0u {

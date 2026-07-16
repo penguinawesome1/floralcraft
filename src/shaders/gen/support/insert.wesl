@@ -1,5 +1,5 @@
 import constants::{MIP_CAPACITY_L1, MIP_CAPACITY_L2, MIP_CAPACITY_L3, MIP_CAPACITY_L4, MIP_CAPACITY_L5};
-import package::data::{pos, flags};
+import package::core::{pos, flags};
 
 struct Camera {
     pos: vec3f,

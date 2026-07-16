@@ -1,6 +1,6 @@
-import package::data::map::lookup;
-import package::data::{pos, blocks, chunk::read_pool};
 import package::config::config;
+import package::core::{pos, blocks};
+import package::raytrace::support::{lookup, read_pool};
 
 const NO_AXIS = 0u;
 const X_AXIS = 1u;

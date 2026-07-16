@@ -1,7 +1,7 @@
-import package::raytrace::dda::{TraceResult, Ray, axis_normal, trace};
-import package::raytrace::{cam, sky};
-import package::data::blocks;
 import package::config::config;
+import package::core::blocks;
+import package::raytrace::support::dda::{TraceResult, Ray, axis_normal, trace};
+import package::raytrace::{renderer::cam, materials::sky};
 
 const PI = 3.1415;
 const NUDGE = 0.001;

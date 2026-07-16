@@ -1,7 +1,7 @@
 import constants::{MIP_CAPACITY_L1, MIP_CAPACITY_L2, MIP_CAPACITY_L3, MIP_CAPACITY_L4, MIP_CAPACITY_L5};
-import package::data::flags::{ALL_AIR, GEN_FLAGS_CAPACITY};
-import package::data::{pos, blocks, flags};
-import package::raytrace::cam;
+import package::core::flags::{ALL_AIR, GEN_FLAGS_CAPACITY};
+import package::core::{pos, blocks, flags};
+import package::raytrace::renderer::cam;
 
 struct LookupResult {
     is_loaded: bool,

@@ -1,10 +1,6 @@
 import constants::MAX_CHUNK_BATCH_SIZE;
-import package::data::flags::GEN_FLAGS_CAPACITY;
-
-struct LoadList {
-    len: atomic<u32>,
-    indices: array<u32, MAX_CHUNK_BATCH_SIZE>,
-}
+import package::core::flags::GEN_FLAGS_CAPACITY;
+import package::gen::support::load_list::LoadList;
 
 @group(0) @binding(0) var<storage, read> gen_flags: array<u32, GEN_FLAGS_CAPACITY>;
 @group(0) @binding(1) var<storage, read_write> load_list: LoadList;

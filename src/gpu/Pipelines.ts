@@ -1,12 +1,13 @@
 import { link, makeWeslDevice, type LinkParams } from "wesl";
-import compactWesl from "../shaders/compact.wesl?link";
-import indirectWesl from "../shaders/indirect.wesl?link";
-import genWesl from "../shaders/gen.wesl?link";
-import raytraceWesl from "../shaders/raytrace.wesl?link";
-import renderWesl from "../shaders/render.wesl?link";
 import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
+
+import compactWesl from "../shaders/gen/01_compact.wesl?link";
+import indirectWesl from "../shaders/gen/02_indirect.wesl?link";
+import terrainWesl from "../shaders/gen/03_terrain.wesl?link";
+import raytraceWesl from "../shaders/raytrace/renderer.wesl?link";
+import presentWesl from "../shaders/present.wesl?link";
 
 export type Pipelines = {
   compact: GPUComputePipeline;
@@ -84,20 +85,20 @@ function createRaytracePipeline(
     layout,
     compute: {
       module,
-      entryPoint: "cs_main",
+      entryPoint: "main",
       constants: { IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
     },
   });
 }
 
-function createRenderPipeline(
+function createPresentPipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
   module: GPUShaderModule,
   format: GPUTextureFormat,
 ): GPURenderPipeline {
   return device.createRenderPipeline({
-    label: "render pipeline",
+    label: "present pipeline",
     layout,
     vertex: { module, entryPoint: "vs_main" },
     fragment: {
@@ -127,20 +128,20 @@ export async function createPipelines(
     indirectWesl,
     "indirect shader module",
   );
-  const genModule = await loadShaderModule(
+  const terrainModule = await loadShaderModule(
     weslDevice,
-    genWesl,
-    "gen shader module",
+    terrainWesl,
+    "terrain shader module",
   );
   const raytraceModule = await loadShaderModule(
     weslDevice,
     raytraceWesl,
     "raytrace shader module",
   );
-  const renderModule = await loadShaderModule(
+  const presentModule = await loadShaderModule(
     weslDevice,
-    renderWesl,
-    "render shader module",
+    presentWesl,
+    "present shader module",
   );
 
   const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
@@ -156,17 +157,17 @@ export async function createPipelines(
       pipeline_layouts.indirect,
       indirectModule,
     ),
-    gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
+    gen: createGenPipeline(device, pipeline_layouts.gen, terrainModule),
     raytrace: createRaytracePipeline(
       device,
       pipeline_layouts.raytrace,
       raytraceModule,
       is_debug_mode,
     ),
-    render: createRenderPipeline(
+    render: createPresentPipeline(
       device,
       pipeline_layouts.render,
-      renderModule,
+      presentModule,
       format,
     ),
   };

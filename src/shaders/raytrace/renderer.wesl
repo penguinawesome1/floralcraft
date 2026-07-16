@@ -1,7 +1,7 @@
 import package::config::{Config, IS_DEBUG_MODE};
-import package::data::blocks;
-import package::raytrace::dda::{Ray, trace, X_AXIS, Y_AXIS};
-import package::raytrace::{sky, pbr};
+import package::core::blocks;
+import package::raytrace::support::dda::{Ray, trace, X_AXIS, Y_AXIS};
+import package::raytrace::materials::{sky, pbr};
 
 struct Camera {
     pos: vec3f,
@@ -23,7 +23,7 @@ fn _px_to_dir(px: vec2u, canvas_size: vec2u, rotation: mat4x4f) -> vec3f {
 }
 
 @compute @workgroup_size(8, 8, 1)
-fn cs_main(@builtin(global_invocation_id) px: vec3u) {
+fn main(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
     if any(px.xy >= canvas_size) { return; }
 
