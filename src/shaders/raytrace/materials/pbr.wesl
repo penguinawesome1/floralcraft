@@ -1,7 +1,7 @@
 import package::config::config;
 import package::core::blocks;
 import package::raytrace::support::dda::{TraceResult, Ray, axis_normal, trace};
-import package::raytrace::{renderer::cam, materials::sky};
+import package::raytrace::materials::sky;
 
 const PI = 3.1415;
 const NUDGE = 0.001;
@@ -49,7 +49,7 @@ fn _block_material(id: u32) -> BlockMaterial {
 }
 
 // NOTE: AI-generated prototype. To be thoroughly reviewed and refactored in a future development stage.
-fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
+fn color(initial_dir: vec3f, initial_res: TraceResult, cam_pos: vec3f, player_chunk: vec3i) -> vec4f {
     // return vec4f(_block_material(initial_res.block_id).albedo, 1.0);
 
     var current_dir = initial_dir;
@@ -73,12 +73,12 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         let H = normalize(V + L);
 
         // --- 1. Calculate Direct Contribution (Sun Light & Shadows) ---
-        let dist = distance(cam.pos, current_res.hit_pos);
+        let dist = distance(cam_pos, current_res.hit_pos);
         let bias = max(1e-4 * dist, NUDGE);
         let shadow_origin = current_res.hit_pos + N * bias;
 
         let shadow_ray = Ray(shadow_origin, L);
-        let shadow_res = trace(shadow_ray);
+        let shadow_res = trace(shadow_ray, player_chunk);
         let in_shadow = shadow_res.block_id != 0u;
 
         let F0 = mix(vec3f(0.04), material.albedo, material.metallic);
@@ -108,7 +108,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
 
         // Trace the secondary ray for the next loop iteration
         current_dir = next_dir;
-        current_res = trace(next_ray);
+        current_res = trace(next_ray, player_chunk);
 
         // Optimization: Stop bouncing if the light energy has completely petered out
         if length(throughput) < 0.01 {
@@ -117,7 +117,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
     }
 
     let mapped = accumulated_color / (accumulated_color + vec3f(1.0));
-    let hit_distance = distance(cam.pos, initial_res.hit_pos);
+    let hit_distance = distance(cam_pos, initial_res.hit_pos);
     let gamma_corrected = pow(mapped, vec3f(1.0 / 2.2));
     let fog_near = 0.5 * config.max_trace_dist;
 

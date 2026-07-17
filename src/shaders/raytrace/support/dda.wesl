@@ -62,10 +62,10 @@ fn step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i) -> StepResul
 }
 
 // Finds the first non-air block the ray hits.
-fn trace(ray: Ray) -> TraceResult {
+fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
     var snapped_pos = vec3i(floor(ray.origin));
     var chunk_pos = pos::chunk(snapped_pos);
-    var lookup_res = lookup::lookup(chunk_pos);
+    var lookup_res = lookup::lookup(chunk_pos, player_chunk);
     let local_pos = pos::local(snapped_pos);
     if !lookup_res.is_loaded {
         return TraceResult(ray.origin, blocks::AIR, NO_AXIS, 0.0);
@@ -92,7 +92,7 @@ fn trace(ray: Ray) -> TraceResult {
         let new_chunk_pos = pos::chunk(snapped_pos);
         if any(new_chunk_pos != chunk_pos) {
             chunk_pos = new_chunk_pos;
-            lookup_res = lookup::lookup(chunk_pos);
+            lookup_res = lookup::lookup(chunk_pos, player_chunk);
             if !lookup_res.is_loaded {
                 return TraceResult(ray.origin, blocks::AIR, NO_AXIS, 0.0);
             }

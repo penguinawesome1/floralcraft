@@ -1,7 +1,6 @@
 import constants::GEN_SIDE;
 
 const ALL_AIR = 1u << 31u;
-const GEN_FLAGS_CAPACITY = (GEN_SIDE * GEN_SIDE * GEN_SIDE + 31u) / 32u;
 
 struct Addr {
     word: u32,

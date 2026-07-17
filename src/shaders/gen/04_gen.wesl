@@ -1,6 +1,6 @@
 import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
 import package::core::{pos, blocks, noise, flags, flags::ALL_AIR};
-import package::gen::support::{insert, insert::cam, alloc, load_list::LoadListView};
+import package::gen::core::{LoadListView, OUT_OF_MEMORY, FreeList};
 
 const _CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const _CHUNK_VOLUME = _CHUNK_SIDE * _CHUNK_SIDE * _CHUNK_SIDE;
@@ -8,8 +8,35 @@ const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
 const _COL_LEN = _CHUNK_SIDE / _IDS_PER_WORD;
 
-@group(0) @binding(0) var<storage, read_write> chunk_pool: array<u32>;
-@group(0) @binding(4) var<storage, read> load_list: LoadListView;
+struct Camera {
+    pos: vec3f,
+    rotation: mat4x4f,
+}
+
+@group(0) @binding(0) var<storage, read> load_list: LoadListView;
+@group(0) @binding(1) var<uniform> cam: Camera;
+@group(0) @binding(2) var<storage, read_write> free_list: FreeList;
+@group(0) @binding(3) var chunk_index_map: texture_storage_3d<r32uint, write>; 
+@group(0) @binding(4) var<storage, read_write> chunk_pool: array<u32>;
+
+fn _insert(chunk_pos: vec3i, value: u32) {
+    let player_chunk = pos::chunk(vec3i(cam.pos));
+    let wrapped = pos::wrapped_chunk(chunk_pos, player_chunk);
+    textureStore(chunk_index_map, wrapped, vec4u(value, 0u, 0u, 0u));
+}
+
+fn _has_free_slot() -> bool {
+    return atomicLoad(&free_list.len) < arrayLength(&free_list.indices);
+}
+
+fn _alloc() -> u32 {
+    let slot = atomicAdd(&free_list.len, 1u);
+    if slot >= arrayLength(&free_list.indices) {
+        atomicSub(&free_list.len, 1u);
+        return OUT_OF_MEMORY;
+    }
+    return free_list.indices[slot];
+}
 
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
     let origin_pos = chunk_pos * i32(_CHUNK_SIDE);
@@ -51,10 +78,10 @@ fn gen_chunk(
     let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
         if chunk_pos.y > 10i {
-            insert::insert(chunk_pos, ALL_AIR);
+            _insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {
-            is_alive = alloc::has_free_slot();
+            is_alive = _has_free_slot();
             atomicStore(&chunk_is_air, 1u);
         }
     }
@@ -66,11 +93,11 @@ fn gen_chunk(
     workgroupBarrier();
     if is_alive && lid == 0u {
         if atomicLoad(&chunk_is_air) == 1u {
-            insert::insert(chunk_pos, ALL_AIR);
+            _insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {
-            chunk_num = alloc::alloc();
-            is_alive &= chunk_num != alloc::OUT_OF_MEMORY;
+            chunk_num = _alloc();
+            is_alive &= chunk_num != OUT_OF_MEMORY;
         }
     }
     workgroupBarrier();
@@ -84,6 +111,6 @@ fn gen_chunk(
     }
     workgroupBarrier();
     if is_alive && lid == 0u {
-        insert::insert(chunk_pos, chunk_num);
+        _insert(chunk_pos, chunk_num);
     }
 }

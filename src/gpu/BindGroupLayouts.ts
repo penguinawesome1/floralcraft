@@ -1,6 +1,7 @@
 export type BindGroupLayouts = {
   compact: GPUBindGroupLayout;
   indirect: GPUBindGroupLayout;
+  free: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
   raytraceStatic: GPUBindGroupLayout;
   raytraceDynamic: GPUBindGroupLayout;
@@ -31,17 +32,43 @@ function createIndirectLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
     label: "indirect bind group layout",
     entries: [
-      // indirect_args
+      // load_list
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "storage" },
+        buffer: { type: "read-only-storage" },
       },
-      // load_list
+      // indirect_args
       {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
+
+function createFreeLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "free bind group layout",
+    entries: [
+      // load_list
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: { viewDimension: "3d", sampleType: "uint" },
+      },
+      // free_list
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
       },
     ],
   });
@@ -51,21 +78,17 @@ function createGenLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
     label: "gen bind group layout",
     entries: [
-      // chunk_pool
+      // load_list
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "storage" },
+        buffer: { type: "read-only-storage" },
       },
-      // chunk_index_map
+      // camera
       {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          access: "write-only",
-          format: "r32uint",
-          viewDimension: "3d",
-        },
+        buffer: { type: "uniform" },
       },
       // free_list
       {
@@ -73,21 +96,19 @@ function createGenLayout(device: GPUDevice): GPUBindGroupLayout {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
-      // camera
+      // chunk_index_map
       {
         binding: 3,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "uniform" },
+        storageTexture: {
+          access: "write-only",
+          format: "r32uint",
+          viewDimension: "3d",
+        },
       },
-      // load_list
+      // chunk_pool
       {
         binding: 4,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "read-only-storage" },
-      },
-      // skip_mips
-      {
-        binding: 5,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
@@ -177,6 +198,7 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
   return {
     compact: createCompactLayout(device),
     indirect: createIndirectLayout(device),
+    free: createFreeLayout(device),
     gen: createGenLayout(device),
     raytraceStatic: createRaytraceStaticLayout(device),
     raytraceDynamic: createRaytraceDynamicLayout(device),

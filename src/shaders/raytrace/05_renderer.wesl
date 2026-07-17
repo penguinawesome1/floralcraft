@@ -1,5 +1,5 @@
 import package::config::{Config, IS_DEBUG_MODE};
-import package::core::blocks;
+import package::core::{blocks, pos};
 import package::raytrace::support::dda::{Ray, trace, X_AXIS, Y_AXIS};
 import package::raytrace::materials::{sky, pbr};
 
@@ -23,13 +23,14 @@ fn _px_to_dir(px: vec2u, canvas_size: vec2u, rotation: mat4x4f) -> vec3f {
 }
 
 @compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) px: vec3u) {
+fn render(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
     if any(px.xy >= canvas_size) { return; }
 
     let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
     let ray = Ray(cam.pos, dir);
-    let res = trace(ray);
+    let player_chunk = pos::chunk(vec3i(cam.pos));
+    let res = trace(ray, player_chunk);
 
     if res.block_id == blocks::AIR {
         textureStore(t_output, px.xy, vec4f(sky::color(dir), 1.0));
@@ -45,5 +46,5 @@ fn main(@builtin(global_invocation_id) px: vec3u) {
         return;
     }
 
-    textureStore(t_output, px.xy, pbr::color(dir, res));
+    textureStore(t_output, px.xy, pbr::color(dir, res, cam.pos, player_chunk));
 }
