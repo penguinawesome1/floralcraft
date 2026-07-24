@@ -15,6 +15,7 @@ fn _free(idx: u32) {
 
 @compute @workgroup_size(64, 1, 1)
 fn free_chunk(@builtin(global_invocation_id) id: vec3u) {
+    if id.x >= load_list.len { return; }
     let wrapped = flags::wrapped_chunk(load_list.indices[id.x]);
     let idx = textureLoad(chunk_index_map, wrapped, 0u).x;
     if idx != 0u && idx != ALL_AIR { _free(idx); }

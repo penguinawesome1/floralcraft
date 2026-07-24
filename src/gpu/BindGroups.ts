@@ -7,12 +7,13 @@ export type StaticBindGroups = {
   indirect: GPUBindGroup;
   free: GPUBindGroup;
   gen: GPUBindGroup;
+  mip: GPUBindGroup;
   raytraceStatic: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
   raytraceDynamic: GPUBindGroup;
-  render: GPUBindGroup;
+  present: GPUBindGroup;
 };
 
 export type BindGroups = StaticBindGroups & DynamicBindGroups;
@@ -82,6 +83,22 @@ function createGenGroup(
   });
 }
 
+function createMipGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "mip bind group",
+    layout: layouts.mip,
+    entries: [
+      { binding: 0, resource: { buffer: resources.load_list } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.skip_mip } },
+    ],
+  });
+}
+
 function createRaytraceStaticGroup(
   device: GPUDevice,
   layouts: BindGroupLayouts,
@@ -94,7 +111,7 @@ function createRaytraceStaticGroup(
       { binding: 0, resource: { buffer: resources.chunk_pool } },
       { binding: 1, resource: resources.chunk_index_map.createView() },
       { binding: 2, resource: { buffer: resources.gen_flags } },
-      { binding: 3, resource: { buffer: resources.skip_mips } },
+      { binding: 3, resource: { buffer: resources.skip_mip } },
     ],
   });
 }
@@ -110,6 +127,7 @@ export function createStaticBindGroups(
     indirect: createIndirectGroup(device, layouts, resources),
     free: createFreeGroup(device, layouts, resources),
     gen: createGenGroup(device, layouts, resources, camera),
+    mip: createMipGroup(device, layouts, resources),
     raytraceStatic: createRaytraceStaticGroup(device, layouts, resources),
   };
 }

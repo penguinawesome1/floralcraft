@@ -1,6 +1,7 @@
 import package::config::{Config, IS_DEBUG_MODE};
 import package::core::{blocks, pos};
-import package::raytrace::support::dda::{Ray, trace, X_AXIS, Y_AXIS};
+import package::raytrace::support::dda::{Ray, X_AXIS, Y_AXIS};
+import package::raytrace::support::dda;
 import package::raytrace::materials::{sky, pbr};
 
 struct Camera {
@@ -22,6 +23,14 @@ fn _px_to_dir(px: vec2u, canvas_size: vec2u, rotation: mat4x4f) -> vec3f {
     return normalize(world_dir);
 }
 
+fn _debug_color(axis: u32) -> vec4f {
+    switch axis {
+        case X_AXIS: { return vec4f(1.0, 0.0, 0.0, 1.0); }
+        case Y_AXIS: { return vec4f(0.0, 1.0, 0.0, 1.0); }
+        default: { return vec4f(0.0, 0.0, 1.0, 1.0); }
+    }
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn render(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
@@ -30,21 +39,15 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
     let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
     let ray = Ray(cam.pos, dir);
     let player_chunk = pos::chunk(vec3i(cam.pos));
-    let res = trace(ray, player_chunk);
+    let res = dda::trace(ray, player_chunk);
 
+    var color: vec4f;
     if res.block_id == blocks::AIR {
-        textureStore(t_output, px.xy, vec4f(sky::color(dir), 1.0));
-        return;
+        color = vec4f(sky::color(dir), 1.0);
+    } else if IS_DEBUG_MODE {
+        color = _debug_color(res.last_hit_axis);
+    } else {
+        color = pbr::color(dir, res, cam.pos, player_chunk);
     }
-
-    if IS_DEBUG_MODE {
-        switch res.last_hit_axis {
-            case X_AXIS: { textureStore(t_output, px.xy, vec4f(1.0, 0.0, 0.0, 1.0)); }
-            case Y_AXIS: { textureStore(t_output, px.xy, vec4f(0.0, 1.0, 0.0, 1.0)); }
-            default: { textureStore(t_output, px.xy, vec4f(0.0, 0.0, 1.0, 1.0)); }
-        }
-        return;
-    }
-
-    textureStore(t_output, px.xy, pbr::color(dir, res, cam.pos, player_chunk));
+    textureStore(t_output, px.xy, color);
 }

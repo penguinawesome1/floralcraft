@@ -5,8 +5,9 @@ export type PipelineLayouts = {
   indirect: GPUPipelineLayout;
   free: GPUPipelineLayout;
   gen: GPUPipelineLayout;
+  mip: GPUPipelineLayout;
   raytrace: GPUPipelineLayout;
-  render: GPUPipelineLayout;
+  present: GPUPipelineLayout;
 };
 
 export function createPipelineLayouts(
@@ -33,15 +34,20 @@ export function createPipelineLayouts(
     bindGroupLayouts: [layouts.gen],
   });
 
+  const mip = device.createPipelineLayout({
+    label: "mip pipeline layout",
+    bindGroupLayouts: [layouts.mip],
+  });
+
   const raytrace = device.createPipelineLayout({
     label: "raytrace pipeline layout",
     bindGroupLayouts: [layouts.raytraceStatic, layouts.raytraceDynamic],
   });
 
-  const render = device.createPipelineLayout({
-    label: "render pipeline layout",
-    bindGroupLayouts: [layouts.render],
+  const present = device.createPipelineLayout({
+    label: "present pipeline layout",
+    bindGroupLayouts: [layouts.present],
   });
 
-  return { compact, indirect, free, gen, raytrace, render };
+  return { compact, indirect, free, gen, mip, raytrace, present };
 }

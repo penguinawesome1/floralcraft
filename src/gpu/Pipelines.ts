@@ -7,16 +7,18 @@ import compactWesl from "../shaders/gen/01_compact.wesl?link";
 import indirectWesl from "../shaders/gen/02_indirect.wesl?link";
 import freeWesl from "../shaders/gen/03_free.wesl?link";
 import genWesl from "../shaders/gen/04_gen.wesl?link";
-import raytraceWesl from "../shaders/raytrace/05_renderer.wesl?link";
-import presentWesl from "../shaders/06_present.wesl?link";
+import mipWesl from "../shaders/gen/05_mip.wesl?link";
+import raytraceWesl from "../shaders/raytrace/06_renderer.wesl?link";
+import presentWesl from "../shaders/07_present.wesl?link";
 
 export type Pipelines = {
   compact: GPUComputePipeline;
   indirect: GPUComputePipeline;
   free: GPUComputePipeline;
   gen: GPUComputePipeline;
+  mip: GPUComputePipeline;
   raytrace: GPUComputePipeline;
-  render: GPURenderPipeline;
+  present: GPURenderPipeline;
 };
 
 async function loadShaderModule(
@@ -88,6 +90,18 @@ function createGenPipeline(
   });
 }
 
+function createMipPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "mip pipeline",
+    layout,
+    compute: { module, entryPoint: "expand_skip_mip" },
+  });
+}
+
 function createRaytracePipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
@@ -152,6 +166,11 @@ export async function createPipelines(
     genWesl,
     "gen shader module",
   );
+  const mipModule = await loadShaderModule(
+    weslDevice,
+    mipWesl,
+    "mip shader module",
+  );
   const raytraceModule = await loadShaderModule(
     weslDevice,
     raytraceWesl,
@@ -178,15 +197,16 @@ export async function createPipelines(
     ),
     free: createFreePipeline(device, pipeline_layouts.free, freeModule),
     gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
+    mip: createMipPipeline(device, pipeline_layouts.mip, mipModule),
     raytrace: createRaytracePipeline(
       device,
       pipeline_layouts.raytrace,
       raytraceModule,
       is_debug_mode,
     ),
-    render: createPresentPipeline(
+    present: createPresentPipeline(
       device,
-      pipeline_layouts.render,
+      pipeline_layouts.present,
       presentModule,
       format,
     ),

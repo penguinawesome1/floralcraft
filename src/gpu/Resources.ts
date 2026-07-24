@@ -3,14 +3,14 @@ import {
   CHUNK_LEN,
   MAX_CHUNK_BATCH_SIZE,
   MAX_CHUNKS_LOADED,
-  MIP_TOTAL_CAPACITY,
+  MIP_CAPACITY,
 } from "../core/Config";
 
 export type Resources = {
   gen_flags: GPUBuffer;
   load_list: GPUBuffer;
   indirect_args: GPUBuffer;
-  skip_mips: GPUBuffer;
+  skip_mip: GPUBuffer;
   chunk_pool: GPUBuffer;
   chunk_index_map: GPUTexture;
   free_list: GPUBuffer;
@@ -48,13 +48,13 @@ export function createResources(device: GPUDevice): Resources {
 
   const indirect_args = device.createBuffer({
     label: "indirect_args buffer",
-    size: 16, // xyz and padding
+    size: 24, // xyz, xyz
     usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE,
   });
 
-  const skip_mips = device.createBuffer({
-    label: "skip_mips buffer",
-    size: MIP_TOTAL_CAPACITY * 4,
+  const skip_mip = device.createBuffer({
+    label: "skip_mip buffer",
+    size: MIP_CAPACITY * 4,
     usage: GPUBufferUsage.STORAGE,
   });
 
@@ -76,7 +76,7 @@ export function createResources(device: GPUDevice): Resources {
     gen_flags,
     load_list,
     indirect_args,
-    skip_mips,
+    skip_mip,
     chunk_pool,
     chunk_index_map,
     free_list: createFreeList(device),

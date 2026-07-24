@@ -3,9 +3,10 @@ export type BindGroupLayouts = {
   indirect: GPUBindGroupLayout;
   free: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
+  mip: GPUBindGroupLayout;
   raytraceStatic: GPUBindGroupLayout;
   raytraceDynamic: GPUBindGroupLayout;
-  render: GPUBindGroupLayout;
+  present: GPUBindGroupLayout;
 };
 
 function createCompactLayout(device: GPUDevice): GPUBindGroupLayout {
@@ -116,6 +117,32 @@ function createGenLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
+function createMipLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "mip bind group layout",
+    entries: [
+      // load_list
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: { viewDimension: "3d", sampleType: "uint" },
+      },
+      // skip_mip
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
+
 function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
     label: "raytrace static bind group layout",
@@ -138,7 +165,7 @@ function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
-      // skip_mips
+      // skip_mip
       {
         binding: 3,
         visibility: GPUShaderStage.COMPUTE,
@@ -174,9 +201,9 @@ function createRaytraceDynamicLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
-function createRenderLayout(device: GPUDevice): GPUBindGroupLayout {
+function createPresentLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
-    label: "render bind group layout",
+    label: "present bind group layout",
     entries: [
       // t_canvas
       {
@@ -200,8 +227,9 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     indirect: createIndirectLayout(device),
     free: createFreeLayout(device),
     gen: createGenLayout(device),
+    mip: createMipLayout(device),
     raytraceStatic: createRaytraceStaticLayout(device),
     raytraceDynamic: createRaytraceDynamicLayout(device),
-    render: createRenderLayout(device),
+    present: createPresentLayout(device),
   };
 }

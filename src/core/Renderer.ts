@@ -80,7 +80,7 @@ export class Renderer {
       this.device,
       0.002,
       14.0,
-      vec3.fromValues(8, 20, 8),
+      vec3.fromValues(1000, 50, 1000),
     );
     this.config = createConfig(this.device, {
       maxTraceDist: this.maxTraceDist,
@@ -144,17 +144,20 @@ export class Renderer {
     const commandEncoder = this.device.createCommandEncoder();
     this.encodeCompactPass(commandEncoder, qSet);
     this.encodeIndirectPass(commandEncoder);
+    this.encodeFreePass(commandEncoder);
     this.encodeGenPass(commandEncoder, qSet);
+    this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
     commandEncoder.clearBuffer(this.resources.load_list);
     this.encodeRaytracePass(commandEncoder, qSet);
-    this.encodeRenderPass(commandEncoder, qSet);
+    this.encodePresentPass(commandEncoder, qSet);
 
     if (qSet) {
       const qBuf = this.queryBuffers[ringIdx];
       const rBuf = this.readBuffers[ringIdx];
-      commandEncoder.resolveQuerySet(qSet, 0, 8, qBuf, 0);
-      commandEncoder.copyBufferToBuffer(qBuf, 0, rBuf, 0, 64);
+      const capacity = 10;
+      commandEncoder.resolveQuerySet(qSet, 0, capacity, qBuf, 0);
+      commandEncoder.copyBufferToBuffer(qBuf, 0, rBuf, 0, capacity * 8);
     }
 
     this.device.queue.submit([commandEncoder.finish()]);
@@ -173,36 +176,10 @@ export class Renderer {
     this.frameCount++;
   }
 
-  private async readTimestamps(idx: number): Promise<void> {
-    if (!this.isProfilingMode) return;
-
-    const rBuf = this.readBuffers[idx];
-    await rBuf.mapAsync(GPUMapMode.READ);
-
-    const arrayBuffer = rBuf.getMappedRange();
-    const timestamps = new BigInt64Array(arrayBuffer.slice(0));
-    rBuf.unmap();
-
-    const compactMilliseconds =
-      Number(timestamps[1] - timestamps[0]) / 1_000_000;
-    const genMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
-    const raytraceMilliseconds =
-      Number(timestamps[5] - timestamps[4]) / 1_000_000;
-    const renderMilliseconds =
-      Number(timestamps[7] - timestamps[6]) / 1_000_000;
-
-    console.log(`
-       Compact Pass: ${compactMilliseconds.toFixed(4)} ms\n
-       Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
-       Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
-       Render Pass: ${renderMilliseconds.toFixed(4)} ms
-     `);
-  }
-
   private createProfilingResources(): void {
     if (!this.isProfilingMode) return;
 
-    const capacity = 8;
+    const capacity = 10;
     for (let i = 0; i < RING_SIZE; i++) {
       this.querySets.push(
         this.device.createQuerySet({ type: "timestamp", count: capacity }),
@@ -221,6 +198,34 @@ export class Renderer {
       );
       this.slotBusy.push(false);
     }
+  }
+
+  private async readTimestamps(idx: number): Promise<void> {
+    if (!this.isProfilingMode) return;
+
+    const rBuf = this.readBuffers[idx];
+    await rBuf.mapAsync(GPUMapMode.READ);
+
+    const arrayBuffer = rBuf.getMappedRange();
+    const timestamps = new BigInt64Array(arrayBuffer.slice(0));
+    rBuf.unmap();
+
+    const compactMilliseconds =
+      Number(timestamps[1] - timestamps[0]) / 1_000_000;
+    const genMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
+    const mipMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
+    const raytraceMilliseconds =
+      Number(timestamps[7] - timestamps[6]) / 1_000_000;
+    const presentMilliseconds =
+      Number(timestamps[9] - timestamps[8]) / 1_000_000;
+
+    console.log(`
+       Compact Pass: ${compactMilliseconds.toFixed(4)} ms\n
+       Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
+       Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
+       Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
+       Present Pass: ${presentMilliseconds.toFixed(4)} ms
+     `);
   }
 
   private encodeCompactPass(
@@ -253,6 +258,14 @@ export class Renderer {
     pass.end();
   }
 
+  private encodeFreePass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass({ label: "free pass" });
+    pass.setPipeline(this.pipelines.free);
+    pass.setBindGroup(0, this.bindGroups.free);
+    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 12);
+    pass.end();
+  }
+
   private encodeGenPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
@@ -274,6 +287,27 @@ export class Renderer {
     pass.end();
   }
 
+  private encodeMipPass(
+    commandEncoder: GPUCommandEncoder,
+    querySet?: GPUQuerySet,
+  ): void {
+    const pass = commandEncoder.beginComputePass({
+      label: "mip pass",
+      timestampWrites:
+        this.isProfilingMode && querySet
+          ? {
+              querySet,
+              beginningOfPassWriteIndex: 4,
+              endOfPassWriteIndex: 5,
+            }
+          : undefined,
+    });
+    pass.setPipeline(this.pipelines.mip);
+    pass.setBindGroup(0, this.bindGroups.mip);
+    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 12);
+    pass.end();
+  }
+
   private encodeRaytracePass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
@@ -284,8 +318,8 @@ export class Renderer {
         this.isProfilingMode && querySet
           ? {
               querySet,
-              beginningOfPassWriteIndex: 4,
-              endOfPassWriteIndex: 5,
+              beginningOfPassWriteIndex: 6,
+              endOfPassWriteIndex: 7,
             }
           : undefined,
     });
@@ -299,19 +333,19 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeRenderPass(
+  private encodePresentPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const canvasTextureView = this.context.getCurrentTexture().createView();
     const pass = commandEncoder.beginRenderPass({
-      label: "render pass",
+      label: "present pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
               querySet,
-              beginningOfPassWriteIndex: 6,
-              endOfPassWriteIndex: 7,
+              beginningOfPassWriteIndex: 8,
+              endOfPassWriteIndex: 9,
             }
           : undefined,
       colorAttachments: [
@@ -323,8 +357,8 @@ export class Renderer {
         },
       ],
     });
-    pass.setPipeline(this.pipelines.render);
-    pass.setBindGroup(0, this.bindGroups.render);
+    pass.setPipeline(this.pipelines.present);
+    pass.setBindGroup(0, this.bindGroups.present);
     pass.draw(3);
     pass.end();
   }
@@ -374,15 +408,15 @@ export class Renderer {
       ],
     });
 
-    const render = this.device.createBindGroup({
-      label: "render bind group",
-      layout: this.bindGroupLayouts.render,
+    const present = this.device.createBindGroup({
+      label: "present bind group",
+      layout: this.bindGroupLayouts.present,
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: this.canvasSampler },
       ],
     });
 
-    return { raytraceDynamic, render };
+    return { raytraceDynamic, present };
   }
 }

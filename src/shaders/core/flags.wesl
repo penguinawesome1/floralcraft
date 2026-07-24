@@ -7,8 +7,8 @@ struct Addr {
     bit: u32,
 }
 
-fn addr(wrapped_chunk: vec3u) -> Addr {
-    let linear_idx = wrapped_chunk.z * (GEN_SIDE * GEN_SIDE) + wrapped_chunk.x * GEN_SIDE + wrapped_chunk.y;
+fn addr(pos: vec3u, side: u32) -> Addr {
+    let linear_idx = pos.z * (side * side) + pos.x * side + pos.y;
     return Addr(linear_idx / 32u, linear_idx % 32u);
 }
 
