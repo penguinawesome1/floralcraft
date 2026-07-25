@@ -19,20 +19,24 @@ export const SHADER_CONFIG = {
 
 export type Config = {
   buffer: GPUBuffer;
-  uniformData: Float32Array;
+  uniformData: ArrayBuffer;
   update: (queue: GPUQueue, values: Partial<ConfigValues>) => void;
 };
 
 type ConfigValues = {
   maxTraceDist: number;
   timeOfDay: number;
+  pendingAction: 0 | 1 | 2; // none | break | place
 };
 
 export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
-  const uniformData = new Float32Array([
-    initial.maxTraceDist,
-    initial.timeOfDay,
-  ]);
+  const uniformData = new ArrayBuffer(12);
+  const floatView = new Float32Array(uniformData);
+  const uintView = new Uint32Array(uniformData);
+
+  floatView[0] = initial.maxTraceDist;
+  floatView[1] = initial.timeOfDay;
+  uintView[2] = initial.pendingAction;
 
   const buffer = device.createBuffer({
     label: "config buffer",
@@ -46,11 +50,15 @@ export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
     let dirty = false;
 
     if (values.maxTraceDist !== undefined) {
-      uniformData[0] = values.maxTraceDist;
+      floatView[0] = values.maxTraceDist;
       dirty = true;
     }
     if (values.timeOfDay !== undefined) {
-      uniformData[1] = values.timeOfDay;
+      floatView[1] = values.timeOfDay;
+      dirty = true;
+    }
+    if (values.pendingAction !== undefined) {
+      uintView[2] = values.pendingAction;
       dirty = true;
     }
 

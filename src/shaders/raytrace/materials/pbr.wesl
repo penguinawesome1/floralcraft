@@ -1,4 +1,4 @@
-import package::config::config;
+import package::raytrace::bindings::config;
 import package::core::blocks;
 import package::raytrace::support::dda::{TraceResult, Ray, axis_normal, trace};
 import package::raytrace::materials::sky;

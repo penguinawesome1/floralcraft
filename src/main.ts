@@ -117,7 +117,7 @@ class GameApp {
       oldTrack.currentTime = 0;
 
       this.currentTrack = targetTrack;
-      this.currentTrack.volume = this.isPaused ? 0.25 : 0.5;
+      this.currentTrack.volume = this.isPaused ? 0.2 : 0.5;
 
       if (!this.isPaused) {
         this.currentTrack.play().catch((err) => console.warn(err));
@@ -133,7 +133,7 @@ class GameApp {
 
     const timeOfDay = this.renderer.getTimeOfDay();
     const target =
-      timeOfDay > 0.1 && timeOfDay < 0.6
+      timeOfDay > 0.25 && timeOfDay < 0.75
         ? this.daytimeTrack
         : this.nighttimeTrack;
     this.switchTrack(target);

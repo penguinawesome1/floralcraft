@@ -12,6 +12,7 @@
 }
 
 #loading-screen {
+  z-index: 5;
   position: absolute;
   inset: 0;
 
@@ -76,4 +77,22 @@
 
 .pulsing {
   animation: pulse 2s ease-in-out infinite;
+}
+
+#viewport {
+  position: relative; /* anchor for the crosshair's absolute positioning */
+  width: 100vw;
+  height: 100vh;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  background: white;
+  mix-blend-mode: difference;
+  pointer-events: none;
 }

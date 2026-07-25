@@ -6,6 +6,8 @@ export type BindGroupLayouts = {
   mip: GPUBindGroupLayout;
   raytraceStatic: GPUBindGroupLayout;
   raytraceDynamic: GPUBindGroupLayout;
+  modify: GPUBindGroupLayout;
+  store: GPUBindGroupLayout;
   present: GPUBindGroupLayout;
 };
 
@@ -171,6 +173,12 @@ function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
       },
+      // block_target
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
     ],
   });
 }
@@ -196,6 +204,86 @@ function createRaytraceDynamicLayout(device: GPUDevice): GPUBindGroupLayout {
         binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "uniform" },
+      },
+    ],
+  });
+}
+
+function createModifyLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "modify bind group layout",
+    entries: [
+      // config
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
+      // block_target
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
+      // camera
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
+      // chunk_index_map
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: { viewDimension: "3d", sampleType: "uint" },
+      },
+      // chunk_pool
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+      // free_list
+      {
+        binding: 5,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+      // alloc_result
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
+
+function createStoreLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "modify bind group layout",
+    entries: [
+      // alloc_result
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          access: "write-only",
+          format: "r32uint",
+          viewDimension: "3d",
+        },
+      },
+      // skip_mip
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
       },
     ],
   });
@@ -230,6 +318,8 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     mip: createMipLayout(device),
     raytraceStatic: createRaytraceStaticLayout(device),
     raytraceDynamic: createRaytraceDynamicLayout(device),
+    modify: createModifyLayout(device),
+    store: createStoreLayout(device),
     present: createPresentLayout(device),
   };
 }

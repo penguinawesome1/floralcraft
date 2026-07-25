@@ -85,6 +85,7 @@ export class Renderer {
     this.config = createConfig(this.device, {
       maxTraceDist: this.maxTraceDist,
       timeOfDay: 0.5,
+      pendingAction: 0,
     });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
@@ -93,6 +94,7 @@ export class Renderer {
       this.device,
       this.bindGroupLayouts,
       this.resources,
+      this.config,
       this.camera,
     );
     this.bindGroups = { ...staticBindGroups } as BindGroups;
@@ -132,6 +134,7 @@ export class Renderer {
     this.config.update(this.device.queue, {
       timeOfDay,
       maxTraceDist: this.maxTraceDist,
+      pendingAction: inputState.pendingAction,
     });
     this.camera.update(this.device.queue, deltaTime, inputState);
   }
@@ -146,14 +149,13 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    this.encodeCompactPass(commandEncoder, qSet);
-    this.encodeIndirectPass(commandEncoder);
-    this.encodeFreePass(commandEncoder);
+    this.encodeCompactIndirectFreePass(commandEncoder, qSet);
     this.encodeGenPass(commandEncoder, qSet);
     this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
     commandEncoder.clearBuffer(this.resources.load_list);
     this.encodeRaytracePass(commandEncoder, qSet);
+    this.encodeModifyStorePass(commandEncoder);
     this.encodePresentPass(commandEncoder, qSet);
 
     if (qSet) {
@@ -224,7 +226,7 @@ export class Renderer {
       Number(timestamps[9] - timestamps[8]) / 1_000_000;
 
     console.log(`
-       Compact Pass: ${compactMilliseconds.toFixed(4)} ms\n
+       Compact-Indirect-Free Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
        Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
@@ -232,12 +234,12 @@ export class Renderer {
      `);
   }
 
-  private encodeCompactPass(
+  private encodeCompactIndirectFreePass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const pass = commandEncoder.beginComputePass({
-      label: "compact pass",
+      label: "compact indirect free pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
@@ -247,26 +249,20 @@ export class Renderer {
             }
           : undefined,
     });
+
     pass.setPipeline(this.pipelines.compact);
     pass.setBindGroup(0, this.bindGroups.compact);
     const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
     pass.dispatchWorkgroups(Math.ceil(totalWords / 64), 1, 1);
-    pass.end();
-  }
 
-  private encodeIndirectPass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass({ label: "indirect pass" });
     pass.setPipeline(this.pipelines.indirect);
     pass.setBindGroup(0, this.bindGroups.indirect);
     pass.dispatchWorkgroups(1, 1, 1);
-    pass.end();
-  }
 
-  private encodeFreePass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass({ label: "free pass" });
     pass.setPipeline(this.pipelines.free);
     pass.setBindGroup(0, this.bindGroups.free);
     pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 12);
+
     pass.end();
   }
 
@@ -334,6 +330,22 @@ export class Renderer {
       Math.ceil(this.canvas.width / 8),
       Math.ceil(this.canvas.height / 8),
     );
+    pass.end();
+  }
+
+  private encodeModifyStorePass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass({
+      label: "modify store pass",
+    });
+
+    pass.setPipeline(this.pipelines.modify);
+    pass.setBindGroup(0, this.bindGroups.modify);
+    pass.dispatchWorkgroups(1, 1, 1);
+
+    pass.setBindGroup(0, this.bindGroups.store);
+    pass.setPipeline(this.pipelines.store);
+    pass.dispatchWorkgroups(1, 1, 1);
+
     pass.end();
   }
 

@@ -9,7 +9,9 @@ import freeWesl from "../shaders/gen/03_free.wesl?link";
 import genWesl from "../shaders/gen/04_gen.wesl?link";
 import mipWesl from "../shaders/gen/05_mip.wesl?link";
 import raytraceWesl from "../shaders/raytrace/06_renderer.wesl?link";
-import presentWesl from "../shaders/07_present.wesl?link";
+import modifyWesl from "../shaders/modify/07_modify.wesl?link";
+import storeWesl from "../shaders/modify/08_store.wesl?link";
+import presentWesl from "../shaders/09_present.wesl?link";
 
 export type Pipelines = {
   compact: GPUComputePipeline;
@@ -18,6 +20,8 @@ export type Pipelines = {
   gen: GPUComputePipeline;
   mip: GPUComputePipeline;
   raytrace: GPUComputePipeline;
+  modify: GPUComputePipeline;
+  store: GPUComputePipeline;
   present: GPURenderPipeline;
 };
 
@@ -40,6 +44,30 @@ async function validateShader(module: GPUShaderModule) {
       console.error(`WGSL error line ${e.lineNum}: ${e.message}`);
     throw new Error("Shader compilation failed");
   }
+}
+
+function createModifyPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "modify pipeline",
+    layout,
+    compute: { module, entryPoint: "modify_target_block" },
+  });
+}
+
+function createStorePipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "store pipeline",
+    layout,
+    compute: { module, entryPoint: "store_chunk_num" },
+  });
 }
 
 function createCompactPipeline(
@@ -176,6 +204,16 @@ export async function createPipelines(
     raytraceWesl,
     "raytrace shader module",
   );
+  const modifyModule = await loadShaderModule(
+    weslDevice,
+    modifyWesl,
+    "modify shader module",
+  );
+  const storeModule = await loadShaderModule(
+    weslDevice,
+    storeWesl,
+    "store shader module",
+  );
   const presentModule = await loadShaderModule(
     weslDevice,
     presentWesl,
@@ -204,6 +242,8 @@ export async function createPipelines(
       raytraceModule,
       is_debug_mode,
     ),
+    modify: createModifyPipeline(device, pipeline_layouts.modify, modifyModule),
+    store: createStorePipeline(device, pipeline_layouts.store, storeModule),
     present: createPresentPipeline(
       device,
       pipeline_layouts.present,

@@ -1,4 +1,5 @@
 import type { Camera } from "../core/Camera";
+import type { Config } from "../core/Config";
 import type { BindGroupLayouts } from "./BindGroupLayouts";
 import type { Resources } from "./Resources";
 
@@ -8,6 +9,8 @@ export type StaticBindGroups = {
   free: GPUBindGroup;
   gen: GPUBindGroup;
   mip: GPUBindGroup;
+  modify: GPUBindGroup;
+  store: GPUBindGroup;
   raytraceStatic: GPUBindGroup;
 };
 
@@ -112,6 +115,45 @@ function createRaytraceStaticGroup(
       { binding: 1, resource: resources.chunk_index_map.createView() },
       { binding: 2, resource: { buffer: resources.gen_flags } },
       { binding: 3, resource: { buffer: resources.skip_mip } },
+      { binding: 4, resource: { buffer: resources.block_target } },
+    ],
+  });
+}
+
+function createModifyGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+  config: Config,
+  camera: Camera,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "modify bind group",
+    layout: layouts.modify,
+    entries: [
+      { binding: 0, resource: { buffer: config.buffer } },
+      { binding: 1, resource: { buffer: resources.block_target } },
+      { binding: 2, resource: { buffer: camera.buffer } },
+      { binding: 3, resource: resources.chunk_index_map.createView() },
+      { binding: 4, resource: { buffer: resources.chunk_pool } },
+      { binding: 5, resource: { buffer: resources.free_list } },
+      { binding: 6, resource: { buffer: resources.alloc_result } },
+    ],
+  });
+}
+
+function createStoreGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "store bind group",
+    layout: layouts.store,
+    entries: [
+      { binding: 0, resource: { buffer: resources.alloc_result } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.skip_mip } },
     ],
   });
 }
@@ -120,6 +162,7 @@ export function createStaticBindGroups(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
+  config: Config,
   camera: Camera,
 ): StaticBindGroups {
   return {
@@ -129,5 +172,7 @@ export function createStaticBindGroups(
     gen: createGenGroup(device, layouts, resources, camera),
     mip: createMipGroup(device, layouts, resources),
     raytraceStatic: createRaytraceStaticGroup(device, layouts, resources),
+    modify: createModifyGroup(device, layouts, resources, config, camera),
+    store: createStoreGroup(device, layouts, resources),
   };
 }

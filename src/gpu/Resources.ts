@@ -14,6 +14,8 @@ export type Resources = {
   chunk_pool: GPUBuffer;
   chunk_index_map: GPUTexture;
   free_list: GPUBuffer;
+  block_target: GPUBuffer;
+  alloc_result: GPUBuffer;
 };
 
 function createFreeList(device: GPUDevice): GPUBuffer {
@@ -72,6 +74,18 @@ export function createResources(device: GPUDevice): Resources {
     usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
   });
 
+  const block_target = device.createBuffer({
+    label: "block_target buffer",
+    size: 32,
+    usage: GPUBufferUsage.STORAGE,
+  });
+
+  const alloc_result = device.createBuffer({
+    label: "chunk_alloc_result buffer",
+    size: 32,
+    usage: GPUBufferUsage.STORAGE,
+  });
+
   return {
     gen_flags,
     load_list,
@@ -80,5 +94,7 @@ export function createResources(device: GPUDevice): Resources {
     chunk_pool,
     chunk_index_map,
     free_list: createFreeList(device),
+    block_target,
+    alloc_result,
   };
 }

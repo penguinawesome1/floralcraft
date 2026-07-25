@@ -1,14 +1,17 @@
-import package::config::{Config, IS_DEBUG_MODE};
+import package::config::IS_DEBUG_MODE;
+import package::raytrace::bindings::config;
 import package::core::{blocks, pos};
-import package::raytrace::support::dda::{Ray, X_AXIS, Y_AXIS};
+import package::raytrace::support::dda::{Ray, X_AXIS, Y_AXIS, NO_AXIS};
 import package::raytrace::support::dda;
 import package::raytrace::materials::{sky, pbr};
+import package::core::block_target::BlockTarget;
 
 struct Camera {
     pos: vec3f,
     rotation: mat4x4f,
 }
 
+@group(0) @binding(4) var<storage, read_write> block_target: BlockTarget;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(1) var<uniform> cam: Camera;
 
@@ -41,13 +44,37 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
     let player_chunk = pos::chunk(vec3i(cam.pos));
     let res = dda::trace(ray, player_chunk);
 
+    let crosshair_px = canvas_size / 2u;
+    if all(px.xy == crosshair_px) {
+        let is_valid_target = config.pending_action != 0u
+            && res.block_id != blocks::AIR;
+
+        block_target.is_block_hit = u32(is_valid_target);
+        if is_valid_target {
+            let grid_step = vec3i(sign(ray.dir));
+            let axis_offset = select(
+                select(vec3i(0, 0, 1), vec3i(0, 1, 0), res.last_hit_axis == Y_AXIS),
+                vec3i(1, 0, 0),
+                res.last_hit_axis == X_AXIS
+            ) * grid_step;
+
+            block_target.pos = select(
+                res.snapped_pos - axis_offset,
+                res.snapped_pos,
+                config.pending_action == 1u
+            );
+        }
+    }
+
     var color: vec4f;
     if res.block_id == blocks::AIR {
         color = vec4f(sky::color(dir), 1.0);
-    } else if IS_DEBUG_MODE {
-        color = _debug_color(res.last_hit_axis);
     } else {
-        color = pbr::color(dir, res, cam.pos, player_chunk);
+        if IS_DEBUG_MODE {
+            color = _debug_color(res.last_hit_axis);
+        } else {
+            color = pbr::color(dir, res, cam.pos, player_chunk);
+        }
     }
     textureStore(t_output, px.xy, color);
 }

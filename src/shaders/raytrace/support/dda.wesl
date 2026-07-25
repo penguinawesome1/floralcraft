@@ -1,4 +1,4 @@
-import package::config::config;
+import package::raytrace::bindings::config;
 import package::core::{pos, blocks};
 import package::raytrace::support::{lookup, read_pool};
 
@@ -18,6 +18,7 @@ struct StepResult {
 
 struct TraceResult {
     hit_pos: vec3f,
+    snapped_pos: vec3i,
     block_id: u32,
     last_hit_axis: u32,
     distance: f32,
@@ -91,18 +92,18 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
             chunk_pos = new_chunk_pos;
             lookup_res = lookup::lookup(chunk_pos, player_chunk);
             if !lookup_res.is_loaded {
-                return TraceResult(ray.origin, blocks::AIR, NO_AXIS, 0.0);
+                return TraceResult(ray.origin, snapped_pos, blocks::AIR, NO_AXIS, 0.0);
             }
             if !is_chunk_found_once || lookup_res.mip_level != prev_mip_level {
                 scale = select(1u, 8u << (lookup_res.mip_level - 1u), lookup_res.mip_level > 0u);
-                var next_boundary = vec3f(0);
+                var next_boundary = vec3i(0);
                 if lookup_res.mip_level == 0u {
-                    next_boundary = vec3f(snapped_pos) + vec3f(grid_step > vec3i(0));
+                    next_boundary = snapped_pos + vec3i(grid_step > vec3i(0));
                 } else {
                     let mip_cell_pos = snapped_pos & ~vec3i(i32(scale) - 1i);
-                    next_boundary = vec3f(mip_cell_pos) + f32(scale) * vec3f(grid_step > vec3i(0));
+                    next_boundary = mip_cell_pos + i32(scale) * vec3i(grid_step > vec3i(0));
                 }
-                let raw_t_max = (next_boundary - ray.origin) / ray.dir;
+                let raw_t_max = (vec3f(next_boundary) - ray.origin) / ray.dir;
                 t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
                 prev_mip_level = lookup_res.mip_level;
             }
@@ -113,7 +114,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
             let local_pos = pos::local(snapped_pos);
             let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
             if bid != blocks::AIR {
-                return TraceResult(ray.origin + ray.dir * t, bid, last_hit_axis, t);
+                return TraceResult(ray.origin + ray.dir * t, snapped_pos, bid, last_hit_axis, t);
             }
         }
 
@@ -125,7 +126,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
         if t > config.max_trace_dist { break; }
     }
 
-    return TraceResult(vec3f(0.0), blocks::AIR, NO_AXIS, config.max_trace_dist);
+    return TraceResult(vec3f(0.0), snapped_pos, blocks::AIR, NO_AXIS, config.max_trace_dist);
 }
 
 fn axis_normal(axis: u32, dir: vec3f) -> vec3f {

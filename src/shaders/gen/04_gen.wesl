@@ -16,7 +16,7 @@ struct Camera {
 @group(0) @binding(0) var<storage, read> load_list: LoadListView;
 @group(0) @binding(1) var<uniform> cam: Camera;
 @group(0) @binding(2) var<storage, read_write> free_list: FreeList;
-@group(0) @binding(3) var chunk_index_map: texture_storage_3d<r32uint, write>; 
+@group(0) @binding(3) var chunk_index_map: texture_storage_3d<r32uint, write>;
 @group(0) @binding(4) var<storage, read_write> chunk_pool: array<u32>;
 
 fn _insert(chunk_pos: vec3i, value: u32) {
