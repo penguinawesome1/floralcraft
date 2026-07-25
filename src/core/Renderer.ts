@@ -113,6 +113,10 @@ export class Renderer {
     this.resize();
   }
 
+  public getTimeOfDay(): number {
+    return (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
+  }
+
   update(inputState: InputState): void {
     if (inputState.keys.has("BracketLeft")) {
       this.maxTraceDist /= 1.05;
