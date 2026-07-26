@@ -51,15 +51,9 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
 
         block_target.is_block_hit = u32(is_valid_target);
         if is_valid_target {
-            let grid_step = vec3i(sign(ray.dir));
-            let axis_offset = select(
-                select(vec3i(0, 0, 1), vec3i(0, 1, 0), res.last_hit_axis == Y_AXIS),
-                vec3i(1, 0, 0),
-                res.last_hit_axis == X_AXIS
-            ) * grid_step;
-
+            let axis_offset = vec3i(dda::axis_normal(res.last_hit_axis, ray.dir));
             block_target.pos = select(
-                res.snapped_pos - axis_offset,
+                res.snapped_pos + axis_offset,
                 res.snapped_pos,
                 config.pending_action == 1u
             );

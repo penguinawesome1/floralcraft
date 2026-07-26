@@ -7,21 +7,22 @@ const X_AXIS = 1u;
 const Y_AXIS = 2u;
 const Z_AXIS = 3u;
 const INF = 1e30;
-const EPS = 1e-4;
+const EPS = 1e-3;
 
 struct StepResult {
-    t: f32,
     t_max: vec3f,
+    hit_pos: vec3f,
     snapped_pos: vec3i,
+    t: f32,
     last_hit_axis: u32,
 }
 
 struct TraceResult {
     hit_pos: vec3f,
     snapped_pos: vec3i,
+    distance: f32,
     block_id: u32,
     last_hit_axis: u32,
-    distance: f32,
 }
 
 struct Ray {
@@ -30,7 +31,16 @@ struct Ray {
 }
 
 // Finds the grid boundary that first occurs along the given ray.
-fn _step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i, scale: u32, ray: Ray) -> StepResult {
+fn _step(
+    t_max: vec3f,
+    hit_pos: vec3f,
+    snapped_pos: vec3i,
+    t_prev: f32,
+    delta_t: vec3f,
+    grid_step: vec3i,
+    scale: u32,
+    ray: Ray
+) -> StepResult {
     let t = min(t_max.x, min(t_max.y, t_max.z));
     let step_x = t_max.x <= t;
     let step_y = t_max.y <= t;
@@ -41,8 +51,11 @@ fn _step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i, scale: u32,
     s.t_max = t_max;
     s.last_hit_axis = select(select(select(NO_AXIS, Z_AXIS, step_z), Y_AXIS, step_y), X_AXIS, step_x);
 
-    if scale == 0u {
-        s.snapped_pos = pos;
+    let local_dt = t - t_prev;
+    s.hit_pos = hit_pos + ray.dir * local_dt;
+
+    if scale == 1u {
+        s.snapped_pos = snapped_pos;
         if step_x {
             s.t_max.x += delta_t.x;
             s.snapped_pos.x += grid_step.x;
@@ -56,8 +69,7 @@ fn _step(t_max: vec3f, pos: vec3i, delta_t: vec3f, grid_step: vec3i, scale: u32,
             s.snapped_pos.z += grid_step.z;
         }
     } else {
-        let hit_pos = ray.origin + ray.dir * t;
-        s.snapped_pos = vec3i(floor(hit_pos + ray.dir * EPS));
+        s.snapped_pos = vec3i(floor(s.hit_pos + ray.dir * EPS));
         let d_t = delta_t * f32(scale);
         if step_x { s.t_max.x += d_t.x; }
         if step_y { s.t_max.y += d_t.y; }
@@ -78,6 +90,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
     var snapped_pos = origin;
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
     var t = 0.0;
+    var hit_pos = ray.origin;
     var last_hit_axis = NO_AXIS;
 
     var is_chunk_found_once = false;
@@ -92,7 +105,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
             chunk_pos = new_chunk_pos;
             lookup_res = lookup::lookup(chunk_pos, player_chunk);
             if !lookup_res.is_loaded {
-                return TraceResult(ray.origin, snapped_pos, blocks::AIR, NO_AXIS, 0.0);
+                return TraceResult(ray.origin, snapped_pos, 0.0, blocks::AIR, NO_AXIS);
             }
             if !is_chunk_found_once || lookup_res.mip_level != prev_mip_level {
                 scale = select(1u, 8u << (lookup_res.mip_level - 1u), lookup_res.mip_level > 0u);
@@ -103,7 +116,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
                     let mip_cell_pos = snapped_pos & ~vec3i(i32(scale) - 1i);
                     next_boundary = mip_cell_pos + i32(scale) * vec3i(grid_step > vec3i(0));
                 }
-                let raw_t_max = (vec3f(next_boundary) - ray.origin) / ray.dir;
+                let raw_t_max = t + (vec3f(next_boundary) - hit_pos) / ray.dir;
                 t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
                 prev_mip_level = lookup_res.mip_level;
             }
@@ -114,19 +127,20 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
             let local_pos = pos::local(snapped_pos);
             let bid = read_pool::block_id(lookup_res.chunk_idx, local_pos);
             if bid != blocks::AIR {
-                return TraceResult(ray.origin + ray.dir * t, snapped_pos, bid, last_hit_axis, t);
+                return TraceResult(hit_pos, snapped_pos, t, bid, last_hit_axis);
             }
         }
 
-        let step_res = _step(t_max, snapped_pos, delta_t, grid_step, scale, ray);
+        let step_res = _step(t_max, hit_pos, snapped_pos, t, delta_t, grid_step, scale, ray);
         t_max = step_res.t_max;
         snapped_pos = step_res.snapped_pos;
+        hit_pos = step_res.hit_pos;
         last_hit_axis = step_res.last_hit_axis;
         t = step_res.t;
         if t > config.max_trace_dist { break; }
     }
 
-    return TraceResult(vec3f(0.0), snapped_pos, blocks::AIR, NO_AXIS, config.max_trace_dist);
+    return TraceResult(vec3f(0.0), snapped_pos, config.max_trace_dist, blocks::AIR, NO_AXIS);
 }
 
 fn axis_normal(axis: u32, dir: vec3f) -> vec3f {
