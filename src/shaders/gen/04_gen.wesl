@@ -40,22 +40,27 @@ fn _alloc() -> u32 {
 
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
     let origin_pos = chunk_pos * i32(_CHUNK_SIDE);
-    let pos = vec2f(origin_pos.xz + vec2i(column_pos.xz)) * 0.04;
-    let noise_normalized = noise::simplex2d(pos) * 0.5 + 0.5;
-    let scaled = i32(noise_normalized * 50.0);
+    let pos = vec2f(origin_pos.xz + vec2i(column_pos.xz));
+    let base = noise::terrain_height(pos);
     var col_is_air = true;
     for (var i = 0u; i < _COL_LEN; i++) {
         let word_base_y = origin_pos.y + i32(i * _IDS_PER_WORD);
         for (var j = 0u; j < _IDS_PER_WORD; j++) {
             let y = word_base_y + i32(j);
             var block_id = blocks::AIR;
-
-            if y == 0i { block_id = blocks::BEDROCK; }
-            else if y + 4i < scaled { block_id = blocks::STONE; }
-            else if y < scaled { block_id = blocks::DIRT; }
-            else if y == scaled { block_id = blocks::GRASS; }
-            else { block_id = blocks::AIR; }
-
+            let d = noise::terrain_density(vec3f(pos.x, f32(y), pos.y), base);
+            if d > 0.0 {
+                let cave_val = noise::cave_density(vec3f(pos.x, f32(y), pos.y), base);
+                if cave_val < 0.6 {
+                    if d > 0.1 {
+                        block_id = blocks::STONE;
+                    } else if d > 0.025 {
+                        block_id = blocks::DIRT;
+                    } else {
+                        block_id = blocks::GRASS;
+                    }
+                }
+            }
             (*temp)[i] = insertBits((*temp)[i], block_id, j * BITS_PER_ID, BITS_PER_ID);
         }
         if (*temp)[i] != 0u { col_is_air = false; }
@@ -77,7 +82,7 @@ fn gen_chunk(
     let player_chunk = pos::chunk(vec3i(cam.pos));
     let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
-        if chunk_pos.y > 10i {
+        if noise::is_definitely_empty(f32(chunk_pos.y * i32(_CHUNK_SIDE))) {
             _insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {

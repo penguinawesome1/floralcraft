@@ -34,7 +34,7 @@ export class Renderer {
   private camera!: Camera;
   private config!: Config;
   private clock: Clock;
-  private maxTraceDist = 200;
+  private maxTraceDist = 500;
 
   private resources!: Resources;
   private bindGroupLayouts!: BindGroupLayouts;
@@ -79,8 +79,8 @@ export class Renderer {
     this.camera = new Camera(
       this.device,
       0.002,
-      14.0,
-      vec3.fromValues(1000, 50, 1000),
+      180.0,
+      vec3.fromValues(1000, 400, 1000),
     );
     this.config = createConfig(this.device, {
       maxTraceDist: this.maxTraceDist,
