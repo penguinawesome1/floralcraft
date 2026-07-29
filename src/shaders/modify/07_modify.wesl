@@ -14,18 +14,12 @@ struct _ChunkAddr {
     bit_idx: u32,
 }
 
-struct Camera {
-    pos: vec3f,
-    rotation: mat4x4f,
-}
-
 @group(0) @binding(0) var<uniform> config: Config;
 @group(0) @binding(1) var<storage, read> block_target: BlockTarget;
-@group(0) @binding(2) var<uniform> cam: Camera;
-@group(0) @binding(3) var chunk_index_map: texture_3d<u32>;
-@group(0) @binding(4) var<storage, read_write> chunk_pool: array<u32>;
-@group(0) @binding(5) var<storage, read_write> free_list: FreeList;
-@group(0) @binding(6) var<storage, read_write> alloc_result: ChunkAllocResult;
+@group(0) @binding(2) var chunk_index_map: texture_3d<u32>;
+@group(0) @binding(3) var<storage, read_write> chunk_pool: array<u32>;
+@group(0) @binding(4) var<storage, read_write> free_list: FreeList;
+@group(0) @binding(5) var<storage, read_write> alloc_result: ChunkAllocResult;
 
 fn _alloc() -> u32 {
     let slot = atomicAdd(&free_list.len, 1u);
@@ -48,8 +42,7 @@ fn modify_target_block() {
     if config.pending_action == 0u || block_target.is_block_hit == 0u { return; }
 
     let chunk_pos = pos::chunk(block_target.pos);
-    let player_chunk = pos::chunk(vec3i(cam.pos));
-    let wrapped = pos::wrapped_chunk(chunk_pos, player_chunk);
+    let wrapped = pos::wrapped_chunk(chunk_pos);
     var chunk_num = textureLoad(chunk_index_map, wrapped, 0u).x;
 
     if chunk_num == flags::ALL_AIR {

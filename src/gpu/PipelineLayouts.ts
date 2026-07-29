@@ -1,9 +1,10 @@
 import { type BindGroupLayouts } from "./BindGroupLayouts";
 
 export type PipelineLayouts = {
+  free: GPUPipelineLayout;
+  clear: GPUPipelineLayout;
   compact: GPUPipelineLayout;
   indirect: GPUPipelineLayout;
-  free: GPUPipelineLayout;
   gen: GPUPipelineLayout;
   mip: GPUPipelineLayout;
   raytrace: GPUPipelineLayout;
@@ -16,6 +17,16 @@ export function createPipelineLayouts(
   device: GPUDevice,
   layouts: BindGroupLayouts,
 ): PipelineLayouts {
+  const free = device.createPipelineLayout({
+    label: "free pipeline layout",
+    bindGroupLayouts: [layouts.free],
+  });
+
+  const clear = device.createPipelineLayout({
+    label: "clear pipeline layout",
+    bindGroupLayouts: [layouts.clear],
+  });
+
   const compact = device.createPipelineLayout({
     label: "compact pipeline layout",
     bindGroupLayouts: [layouts.compact],
@@ -24,11 +35,6 @@ export function createPipelineLayouts(
   const indirect = device.createPipelineLayout({
     label: "indirect pipeline layout",
     bindGroupLayouts: [layouts.indirect],
-  });
-
-  const free = device.createPipelineLayout({
-    label: "free pipeline layout",
-    bindGroupLayouts: [layouts.free],
   });
 
   const gen = device.createPipelineLayout({
@@ -62,9 +68,10 @@ export function createPipelineLayouts(
   });
 
   return {
+    free,
+    clear,
     compact,
     indirect,
-    free,
     gen,
     mip,
     raytrace,

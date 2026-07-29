@@ -2,7 +2,8 @@ import { vec3, mat4 } from "gl-matrix";
 import type { InputState } from "./Input";
 
 export class Camera {
-  private pos: vec3 = vec3.create();
+  private _pos: vec3 = vec3.create();
+  private _prevPos: vec3 = vec3.create();
   private pitch = 0;
   private yaw = 0;
   private rotation: mat4 = mat4.create();
@@ -17,7 +18,8 @@ export class Camera {
     speed: number,
     initialPos: vec3 = vec3.fromValues(0, 0, 0),
   ) {
-    vec3.copy(this.pos, initialPos);
+    vec3.copy(this._pos, initialPos);
+    vec3.copy(this._prevPos, initialPos);
     this.sensitivity = sensitivity;
     this.speed = speed;
     this._buffer = device.createBuffer({
@@ -29,6 +31,14 @@ export class Camera {
     this.updateRotation();
   }
 
+  get pos(): vec3 {
+    return this._pos;
+  }
+
+  get prevPos(): vec3 {
+    return this._prevPos;
+  }
+
   get buffer(): GPUBuffer {
     return this._buffer;
   }
@@ -38,6 +48,8 @@ export class Camera {
     deltaTime: number,
     { keys, deltaX, deltaY }: InputState,
   ) {
+    vec3.copy(this._prevPos, this._pos);
+
     this.yaw += deltaX * this.sensitivity;
     this.pitch += deltaY * this.sensitivity;
     const MAX_PITCH = Math.PI / 2;
@@ -62,7 +74,7 @@ export class Camera {
 
     if (vec3.length(moveDir) > 0) {
       vec3.normalize(moveDir, moveDir);
-      vec3.scaleAndAdd(this.pos, this.pos, moveDir, this.speed * deltaTime);
+      vec3.scaleAndAdd(this._pos, this._pos, moveDir, this.speed * deltaTime);
     }
 
     this.updateUniform();
@@ -90,7 +102,7 @@ export class Camera {
   }
 
   private updateUniform() {
-    this.uniformData.set(this.pos, 0);
+    this.uniformData.set(this._pos, 0);
     this.uniformData[3] = 0; // padding
     this.uniformData.set(this.rotation, 4);
   }

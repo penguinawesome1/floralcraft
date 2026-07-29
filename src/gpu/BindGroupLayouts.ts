@@ -1,7 +1,8 @@
 export type BindGroupLayouts = {
+  free: GPUBindGroupLayout;
+  clear: GPUBindGroupLayout;
   compact: GPUBindGroupLayout;
   indirect: GPUBindGroupLayout;
-  free: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
   mip: GPUBindGroupLayout;
   raytraceStatic: GPUBindGroupLayout;
@@ -10,6 +11,62 @@ export type BindGroupLayouts = {
   store: GPUBindGroupLayout;
   present: GPUBindGroupLayout;
 };
+
+function createFreeLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "free bind group layout",
+    entries: [
+      // unload_params
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: { viewDimension: "3d", sampleType: "uint" },
+      },
+      // free_list
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
+
+function createClearLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "clear bind group layout",
+    entries: [
+      // unload_params
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
+      // chunk_index_map
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          access: "write-only",
+          format: "r32uint",
+          viewDimension: "3d",
+        },
+      },
+      // skip_mip
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
 
 function createCompactLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
@@ -44,32 +101,6 @@ function createIndirectLayout(device: GPUDevice): GPUBindGroupLayout {
       // indirect_args
       {
         binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "storage" },
-      },
-    ],
-  });
-}
-
-function createFreeLayout(device: GPUDevice): GPUBindGroupLayout {
-  return device.createBindGroupLayout({
-    label: "free bind group layout",
-    entries: [
-      // load_list
-      {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "read-only-storage" },
-      },
-      // chunk_index_map
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        texture: { viewDimension: "3d", sampleType: "uint" },
-      },
-      // free_list
-      {
-        binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
@@ -225,33 +256,27 @@ function createModifyLayout(device: GPUDevice): GPUBindGroupLayout {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
       },
-      // camera
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "uniform" },
-      },
       // chunk_index_map
       {
-        binding: 3,
+        binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         texture: { viewDimension: "3d", sampleType: "uint" },
       },
       // chunk_pool
       {
-        binding: 4,
+        binding: 3,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
       // free_list
       {
-        binding: 5,
+        binding: 4,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
       // alloc_result
       {
-        binding: 6,
+        binding: 5,
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
@@ -311,9 +336,10 @@ function createPresentLayout(device: GPUDevice): GPUBindGroupLayout {
 
 export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
   return {
+    free: createFreeLayout(device),
+    clear: createClearLayout(device),
     compact: createCompactLayout(device),
     indirect: createIndirectLayout(device),
-    free: createFreeLayout(device),
     gen: createGenLayout(device),
     mip: createMipLayout(device),
     raytraceStatic: createRaytraceStaticLayout(device),

@@ -3,9 +3,10 @@ import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
 
-import compactWesl from "../shaders/gen/01_compact.wesl?link";
-import indirectWesl from "../shaders/gen/02_indirect.wesl?link";
-import freeWesl from "../shaders/gen/03_free.wesl?link";
+import freeWesl from "../shaders/gen/00_free.wesl?link";
+import clearWesl from "../shaders/gen/01_clear.wesl?link";
+import compactWesl from "../shaders/gen/02_compact.wesl?link";
+import indirectWesl from "../shaders/gen/03_indirect.wesl?link";
 import genWesl from "../shaders/gen/04_gen.wesl?link";
 import mipWesl from "../shaders/gen/05_mip.wesl?link";
 import raytraceWesl from "../shaders/raytrace/06_renderer.wesl?link";
@@ -14,9 +15,10 @@ import storeWesl from "../shaders/modify/08_store.wesl?link";
 import presentWesl from "../shaders/09_present.wesl?link";
 
 export type Pipelines = {
+  free: GPUComputePipeline;
+  clear: GPUComputePipeline;
   compact: GPUComputePipeline;
   indirect: GPUComputePipeline;
-  free: GPUComputePipeline;
   gen: GPUComputePipeline;
   mip: GPUComputePipeline;
   raytrace: GPUComputePipeline;
@@ -46,27 +48,27 @@ async function validateShader(module: GPUShaderModule) {
   }
 }
 
-function createModifyPipeline(
+function createFreePipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
-    label: "modify pipeline",
+    label: "free pipeline",
     layout,
-    compute: { module, entryPoint: "modify_target_block" },
+    compute: { module, entryPoint: "free_slab" },
   });
 }
 
-function createStorePipeline(
+function createClearPipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
-    label: "store pipeline",
+    label: "clear pipeline",
     layout,
-    compute: { module, entryPoint: "store_chunk_num" },
+    compute: { module, entryPoint: "clear_slab" },
   });
 }
 
@@ -91,18 +93,6 @@ function createIndirectPipeline(
     label: "indirect pipeline",
     layout,
     compute: { module, entryPoint: "write_indirect_args" },
-  });
-}
-
-function createFreePipeline(
-  device: GPUDevice,
-  layout: GPUPipelineLayout,
-  module: GPUShaderModule,
-): GPUComputePipeline {
-  return device.createComputePipeline({
-    label: "free pipeline",
-    layout,
-    compute: { module, entryPoint: "free_chunk" },
   });
 }
 
@@ -147,6 +137,30 @@ function createRaytracePipeline(
   });
 }
 
+function createModifyPipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "modify pipeline",
+    layout,
+    compute: { module, entryPoint: "modify_target_block" },
+  });
+}
+
+function createStorePipeline(
+  device: GPUDevice,
+  layout: GPUPipelineLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "store pipeline",
+    layout,
+    compute: { module, entryPoint: "store_chunk_num" },
+  });
+}
+
 function createPresentPipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
@@ -174,6 +188,16 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
+  const freeModule = await loadShaderModule(
+    weslDevice,
+    freeWesl,
+    "free shader module",
+  );
+  const clearModule = await loadShaderModule(
+    weslDevice,
+    clearWesl,
+    "clear shader module",
+  );
   const compactModule = await loadShaderModule(
     weslDevice,
     compactWesl,
@@ -183,11 +207,6 @@ export async function createPipelines(
     weslDevice,
     indirectWesl,
     "indirect shader module",
-  );
-  const freeModule = await loadShaderModule(
-    weslDevice,
-    freeWesl,
-    "free shader module",
   );
   const genModule = await loadShaderModule(
     weslDevice,
@@ -223,6 +242,8 @@ export async function createPipelines(
   const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
 
   return {
+    free: createFreePipeline(device, pipeline_layouts.free, freeModule),
+    clear: createClearPipeline(device, pipeline_layouts.clear, clearModule),
     compact: createCompactPipeline(
       device,
       pipeline_layouts.compact,
@@ -233,7 +254,6 @@ export async function createPipelines(
       pipeline_layouts.indirect,
       indirectModule,
     ),
-    free: createFreePipeline(device, pipeline_layouts.free, freeModule),
     gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
     mip: createMipPipeline(device, pipeline_layouts.mip, mipModule),
     raytrace: createRaytracePipeline(

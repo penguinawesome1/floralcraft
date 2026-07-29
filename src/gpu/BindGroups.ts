@@ -5,6 +5,7 @@ import type { Resources } from "./Resources";
 
 export type StaticBindGroups = {
   compact: GPUBindGroup;
+  clear: GPUBindGroup;
   indirect: GPUBindGroup;
   free: GPUBindGroup;
   gen: GPUBindGroup;
@@ -20,6 +21,38 @@ export type DynamicBindGroups = {
 };
 
 export type BindGroups = StaticBindGroups & DynamicBindGroups;
+
+function createFreeGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "free bind group",
+    layout: layouts.free,
+    entries: [
+      { binding: 0, resource: { buffer: resources.unload_params } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.free_list } },
+    ],
+  });
+}
+
+function createClearGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "clear bind group",
+    layout: layouts.clear,
+    entries: [
+      { binding: 0, resource: { buffer: resources.unload_params } },
+      { binding: 1, resource: resources.chunk_index_map.createView() },
+      { binding: 2, resource: { buffer: resources.skip_mip } },
+    ],
+  });
+}
 
 function createCompactGroup(
   device: GPUDevice,
@@ -47,22 +80,6 @@ function createIndirectGroup(
     entries: [
       { binding: 0, resource: { buffer: resources.load_list } },
       { binding: 1, resource: { buffer: resources.indirect_args } },
-    ],
-  });
-}
-
-function createFreeGroup(
-  device: GPUDevice,
-  layouts: BindGroupLayouts,
-  resources: Resources,
-): GPUBindGroup {
-  return device.createBindGroup({
-    label: "free bind group",
-    layout: layouts.free,
-    entries: [
-      { binding: 0, resource: { buffer: resources.load_list } },
-      { binding: 1, resource: resources.chunk_index_map.createView() },
-      { binding: 2, resource: { buffer: resources.free_list } },
     ],
   });
 }
@@ -125,7 +142,6 @@ function createModifyGroup(
   layouts: BindGroupLayouts,
   resources: Resources,
   config: Config,
-  camera: Camera,
 ): GPUBindGroup {
   return device.createBindGroup({
     label: "modify bind group",
@@ -133,11 +149,10 @@ function createModifyGroup(
     entries: [
       { binding: 0, resource: { buffer: config.buffer } },
       { binding: 1, resource: { buffer: resources.block_target } },
-      { binding: 2, resource: { buffer: camera.buffer } },
-      { binding: 3, resource: resources.chunk_index_map.createView() },
-      { binding: 4, resource: { buffer: resources.chunk_pool } },
-      { binding: 5, resource: { buffer: resources.free_list } },
-      { binding: 6, resource: { buffer: resources.alloc_result } },
+      { binding: 2, resource: resources.chunk_index_map.createView() },
+      { binding: 3, resource: { buffer: resources.chunk_pool } },
+      { binding: 4, resource: { buffer: resources.free_list } },
+      { binding: 5, resource: { buffer: resources.alloc_result } },
     ],
   });
 }
@@ -166,13 +181,14 @@ export function createStaticBindGroups(
   camera: Camera,
 ): StaticBindGroups {
   return {
+    free: createFreeGroup(device, layouts, resources),
+    clear: createClearGroup(device, layouts, resources),
     compact: createCompactGroup(device, layouts, resources),
     indirect: createIndirectGroup(device, layouts, resources),
-    free: createFreeGroup(device, layouts, resources),
     gen: createGenGroup(device, layouts, resources, camera),
     mip: createMipGroup(device, layouts, resources),
     raytraceStatic: createRaytraceStaticGroup(device, layouts, resources),
-    modify: createModifyGroup(device, layouts, resources, config, camera),
+    modify: createModifyGroup(device, layouts, resources, config),
     store: createStoreGroup(device, layouts, resources),
   };
 }

@@ -1,5 +1,5 @@
 import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
-import package::core::{pos, blocks, noise, flags, flags::ALL_AIR};
+import package::core::{pos, blocks, noise, flags, flags::ALL_AIR, camera::Camera};
 import package::gen::core::{LoadListView, OUT_OF_MEMORY, FreeList};
 
 const _CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
@@ -8,11 +8,6 @@ const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
 const _COL_LEN = _CHUNK_SIDE / _IDS_PER_WORD;
 
-struct Camera {
-    pos: vec3f,
-    rotation: mat4x4f,
-}
-
 @group(0) @binding(0) var<storage, read> load_list: LoadListView;
 @group(0) @binding(1) var<uniform> cam: Camera;
 @group(0) @binding(2) var<storage, read_write> free_list: FreeList;
@@ -20,8 +15,7 @@ struct Camera {
 @group(0) @binding(4) var<storage, read_write> chunk_pool: array<u32>;
 
 fn _insert(chunk_pos: vec3i, value: u32) {
-    let player_chunk = pos::chunk(vec3i(cam.pos));
-    let wrapped = pos::wrapped_chunk(chunk_pos, player_chunk);
+    let wrapped = pos::wrapped_chunk(chunk_pos);
     textureStore(chunk_index_map, wrapped, vec4u(value, 0u, 0u, 0u));
 }
 
@@ -79,7 +73,7 @@ fn gen_chunk(
     @builtin(workgroup_id) wgid: vec3u
 ) {
     let wrapped = flags::wrapped_chunk(load_list.indices[wgid.x]);
-    let player_chunk = pos::chunk(vec3i(cam.pos));
+    let player_chunk = pos::chunk(vec3i(floor(cam.pos)));
     let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
         if noise::is_definitely_empty(f32(chunk_pos.y * i32(_CHUNK_SIDE))) {

@@ -7,6 +7,7 @@ import {
 } from "../core/Config";
 
 export type Resources = {
+  unload_params: GPUBuffer;
   gen_flags: GPUBuffer;
   load_list: GPUBuffer;
   indirect_args: GPUBuffer;
@@ -36,6 +37,12 @@ function createFreeList(device: GPUDevice): GPUBuffer {
 }
 
 export function createResources(device: GPUDevice): Resources {
+  const unload_params = device.createBuffer({
+    label: "unload_params buffer",
+    size: 32,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
   const gen_flags = device.createBuffer({
     label: "gen_flags buffer",
     size: Math.ceil(GEN_SIDE ** 3 / 32) * 4,
@@ -87,6 +94,7 @@ export function createResources(device: GPUDevice): Resources {
   });
 
   return {
+    unload_params,
     gen_flags,
     load_list,
     indirect_args,

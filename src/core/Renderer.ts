@@ -17,11 +17,13 @@ import {
   createConfig,
   GEN_SIDE,
   DAY_LENGTH_SECONDS,
+  CHUNK_SIDE_SHIFT,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
 
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 200;
+const CHUNK_SIDE = 1 << CHUNK_SIDE_SHIFT;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
@@ -79,7 +81,7 @@ export class Renderer {
     this.camera = new Camera(
       this.device,
       0.002,
-      180.0,
+      200.0,
       vec3.fromValues(1000, 400, 1000),
     );
     this.config = createConfig(this.device, {
@@ -149,7 +151,7 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    this.encodeCompactIndirectFreePass(commandEncoder, qSet);
+    this.encodeFreeClearCompactIndirectPass(commandEncoder, qSet);
     this.encodeGenPass(commandEncoder, qSet);
     this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
@@ -226,7 +228,7 @@ export class Renderer {
       Number(timestamps[9] - timestamps[8]) / 1_000_000;
 
     console.log(`
-       Compact-Indirect-Free Pass: ${compactMilliseconds.toFixed(4)} ms\n
+       Free-Clear-Compact-Indirect Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
        Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
@@ -234,7 +236,7 @@ export class Renderer {
      `);
   }
 
-  private encodeCompactIndirectFreePass(
+  private encodeFreeClearCompactIndirectPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
@@ -250,6 +252,60 @@ export class Renderer {
           : undefined,
     });
 
+    const chunkPos = (pos: vec3): vec3 =>
+      vec3.fromValues(
+        Math.floor(pos[0] / CHUNK_SIDE),
+        Math.floor(pos[1] / CHUNK_SIDE),
+        Math.floor(pos[2] / CHUNK_SIDE),
+      );
+
+    const prevChunk = chunkPos(this.camera.prevPos);
+    const currChunk = chunkPos(this.camera.pos);
+
+    const d = vec3.create();
+    vec3.sub(d, currChunk, prevChunk);
+
+    const half = GEN_SIDE / 2;
+    const origin = new Int32Array(3);
+    const depths = new Int32Array(3);
+    let anyAxisNeedsUnload = false;
+
+    for (let axis = 0; axis < 3; axis++) {
+      const delta = d[axis];
+      if (delta === 0) continue;
+
+      if (delta > 0) {
+        origin[axis] = prevChunk[axis] - half;
+        depths[axis] = delta;
+      } else {
+        origin[axis] = currChunk[axis] + half;
+        depths[axis] = -delta;
+      }
+
+      anyAxisNeedsUnload = true;
+    }
+
+    if (anyAxisNeedsUnload) {
+      const uniformData = new Int32Array(8);
+      uniformData.set(origin, 0);
+      uniformData.set(depths, 4);
+      this.device.queue.writeBuffer(
+        this.resources.unload_params,
+        0,
+        uniformData,
+      );
+
+      const groups = Math.ceil(GEN_SIDE / 16);
+
+      pass.setPipeline(this.pipelines.free);
+      pass.setBindGroup(0, this.bindGroups.free);
+      pass.dispatchWorkgroups(groups, groups, 1);
+
+      pass.setPipeline(this.pipelines.clear);
+      pass.setBindGroup(0, this.bindGroups.clear);
+      pass.dispatchWorkgroups(groups, groups, 1);
+    }
+
     pass.setPipeline(this.pipelines.compact);
     pass.setBindGroup(0, this.bindGroups.compact);
     const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
@@ -258,10 +314,6 @@ export class Renderer {
     pass.setPipeline(this.pipelines.indirect);
     pass.setBindGroup(0, this.bindGroups.indirect);
     pass.dispatchWorkgroups(1, 1, 1);
-
-    pass.setPipeline(this.pipelines.free);
-    pass.setBindGroup(0, this.bindGroups.free);
-    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 12);
 
     pass.end();
   }

@@ -1,15 +1,9 @@
 import package::config::IS_DEBUG_MODE;
+import package::core::{blocks, pos, camera::Camera, block_target::BlockTarget};
 import package::raytrace::bindings::config;
-import package::core::{blocks, pos};
-import package::raytrace::support::dda::{Ray, X_AXIS, Y_AXIS, NO_AXIS};
-import package::raytrace::support::dda;
+import package::raytrace::support::dda::{X_AXIS, Y_AXIS, NO_AXIS};
+import package::raytrace::support::{dda, dda::Ray};
 import package::raytrace::materials::{sky, pbr};
-import package::core::block_target::BlockTarget;
-
-struct Camera {
-    pos: vec3f,
-    rotation: mat4x4f,
-}
 
 @group(0) @binding(4) var<storage, read_write> block_target: BlockTarget;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
@@ -41,7 +35,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
 
     let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
     let ray = Ray(cam.pos, dir);
-    let player_chunk = pos::chunk(vec3i(cam.pos));
+    let player_chunk = pos::chunk(vec3i(floor(cam.pos)));
     let res = dda::trace(ray, player_chunk);
 
     let crosshair_px = canvas_size / 2u;
