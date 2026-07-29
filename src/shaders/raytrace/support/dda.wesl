@@ -7,7 +7,7 @@ const X_AXIS = 1u;
 const Y_AXIS = 2u;
 const Z_AXIS = 3u;
 const INF = 1e30;
-const EPS = 1e-3;
+const EPS = 1e-4;
 
 struct StepResult {
     t_max: vec3f,
@@ -50,9 +50,7 @@ fn _step(
     s.t = t;
     s.t_max = t_max;
     s.last_hit_axis = select(select(select(NO_AXIS, Z_AXIS, step_z), Y_AXIS, step_y), X_AXIS, step_x);
-
-    let local_dt = t - t_prev;
-    s.hit_pos = hit_pos + ray.dir * local_dt;
+    s.hit_pos = ray.origin + ray.dir * t;
 
     if scale == 1u {
         s.snapped_pos = snapped_pos;
@@ -69,7 +67,9 @@ fn _step(
             s.snapped_pos.z += grid_step.z;
         }
     } else {
-        s.snapped_pos = vec3i(floor(s.hit_pos + ray.dir * EPS));
+        let adaptive_eps = max(EPS, t * EPS);
+        s.snapped_pos = vec3i(floor(s.hit_pos + ray.dir * adaptive_eps));
+
         let d_t = delta_t * f32(scale);
         if step_x { s.t_max.x += d_t.x; }
         if step_y { s.t_max.y += d_t.y; }
@@ -116,7 +116,8 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
                     let mip_cell_pos = snapped_pos & ~vec3i(i32(scale) - 1i);
                     next_boundary = mip_cell_pos + i32(scale) * vec3i(grid_step > vec3i(0));
                 }
-                let raw_t_max = t + (vec3f(next_boundary) - hit_pos) / ray.dir;
+
+                let raw_t_max = (vec3f(next_boundary) - ray.origin) / ray.dir;
                 t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
                 prev_mip_level = lookup_res.mip_level;
             }
