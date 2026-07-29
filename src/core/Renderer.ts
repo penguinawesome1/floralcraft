@@ -419,8 +419,7 @@ export class Renderer {
       colorAttachments: [
         {
           view: canvasTextureView,
-          clearValue: [0, 0, 0, 1],
-          loadOp: "clear",
+          loadOp: "load",
           storeOp: "store",
         },
       ],
