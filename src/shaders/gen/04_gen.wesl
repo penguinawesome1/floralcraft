@@ -1,12 +1,11 @@
-import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
+import constants::{CHUNK_SIDE, BITS_PER_ID};
 import package::core::{pos, blocks, noise, flags, flags::ALL_AIR, camera::Camera};
 import package::gen::core::{LoadListView, OUT_OF_MEMORY, FreeList};
 
-const _CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
-const _CHUNK_VOLUME = _CHUNK_SIDE * _CHUNK_SIDE * _CHUNK_SIDE;
+const _CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
 const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
-const _COL_LEN = _CHUNK_SIDE / _IDS_PER_WORD;
+const _COL_LEN = CHUNK_SIDE / _IDS_PER_WORD;
 
 @group(0) @binding(0) var<storage, read> load_list: LoadListView;
 @group(0) @binding(1) var<uniform> cam: Camera;
@@ -33,7 +32,7 @@ fn _alloc() -> u32 {
 }
 
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
-    let origin_pos = chunk_pos * i32(_CHUNK_SIDE);
+    let origin_pos = chunk_pos * i32(CHUNK_SIDE);
     let pos = vec2f(origin_pos.xz + vec2i(column_pos.xz));
     let base = noise::terrain_height(pos);
     var col_is_air = true;
@@ -45,7 +44,7 @@ fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u3
             let d = noise::terrain_density(vec3f(pos.x, f32(y), pos.y), base);
             if d > 0.0 {
                 let cave_val = noise::cave_density(vec3f(pos.x, f32(y), pos.y), base);
-                if cave_val < 0.6 {
+                if cave_val < 0.9 {
                     if d > 0.1 {
                         block_id = blocks::STONE;
                     } else if d > 0.025 {
@@ -66,7 +65,7 @@ var<workgroup> is_alive: bool;
 var<workgroup> chunk_is_air: atomic<u32>;
 var<workgroup> chunk_num: u32;
 
-@compute @workgroup_size(_CHUNK_SIDE, 1, _CHUNK_SIDE)
+@compute @workgroup_size(CHUNK_SIDE, 1, CHUNK_SIDE)
 fn gen_chunk(
     @builtin(local_invocation_index) lid: u32,
     @builtin(local_invocation_id) column_pos: vec3u,
@@ -76,7 +75,7 @@ fn gen_chunk(
     let player_chunk = pos::chunk(vec3i(floor(cam.pos)));
     let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
-        if noise::is_definitely_empty(f32(chunk_pos.y * i32(_CHUNK_SIDE))) {
+        if noise::is_definitely_empty(f32(chunk_pos.y * i32(CHUNK_SIDE))) {
             _insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {
@@ -102,7 +101,7 @@ fn gen_chunk(
     workgroupBarrier();
     if is_alive {
         let chunk_base_idx = chunk_num * _CHUNK_LEN;
-        let linear_idx = column_pos.z * (_CHUNK_SIDE * _CHUNK_SIDE) + column_pos.x * _CHUNK_SIDE;
+        let linear_idx = column_pos.z * (CHUNK_SIDE * CHUNK_SIDE) + column_pos.x * CHUNK_SIDE;
         let start_word = chunk_base_idx + (linear_idx * BITS_PER_ID / 32u);
         for (var i = 0u; i < _COL_LEN; i++) {
             chunk_pool[start_word + i] = temp[i];

@@ -1,4 +1,3 @@
-import package::raytrace::bindings::config;
 import package::core::{pos, blocks};
 import package::raytrace::support::{lookup, read_pool};
 
@@ -80,12 +79,13 @@ fn _step(
 }
 
 // Finds the first non-air block the ray hits.
-fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
+fn trace(ray: Ray, max_trace_dist: f32) -> TraceResult {
     let origin = vec3i(floor(ray.origin));
     let grid_step = vec3i(sign(ray.dir));
     let delta_t = 1.0 / abs(ray.dir);
     let next_boundary = vec3f(origin) + vec3f(grid_step > vec3i(0));
-    let raw_t_max = (next_boundary - ray.origin) / ray.dir;
+    let inv_dir = 1.0 / ray.dir;
+    let raw_t_max = (next_boundary - ray.origin) * inv_dir;
 
     var snapped_pos = origin;
     var t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
@@ -103,7 +103,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
         let new_chunk_pos = pos::chunk(snapped_pos);
         if !is_chunk_found_once || any(new_chunk_pos != chunk_pos) {
             chunk_pos = new_chunk_pos;
-            lookup_res = lookup::lookup(chunk_pos, player_chunk);
+            lookup_res = lookup::lookup(chunk_pos);
             if !lookup_res.is_loaded {
                 return TraceResult(ray.origin, snapped_pos, 0.0, blocks::AIR, NO_AXIS);
             }
@@ -117,7 +117,7 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
                     next_boundary = mip_cell_pos + i32(scale) * vec3i(grid_step > vec3i(0));
                 }
 
-                let raw_t_max = (vec3f(next_boundary) - ray.origin) / ray.dir;
+                let raw_t_max = (vec3f(next_boundary) - ray.origin) * inv_dir;
                 t_max = select(raw_t_max, vec3f(INF), abs(ray.dir) < vec3f(EPS));
                 prev_mip_level = lookup_res.mip_level;
             }
@@ -138,10 +138,10 @@ fn trace(ray: Ray, player_chunk: vec3i) -> TraceResult {
         hit_pos = step_res.hit_pos;
         last_hit_axis = step_res.last_hit_axis;
         t = step_res.t;
-        if t > config.max_trace_dist { break; }
+        if t > max_trace_dist { break; }
     }
 
-    return TraceResult(vec3f(0.0), snapped_pos, config.max_trace_dist, blocks::AIR, NO_AXIS);
+    return TraceResult(vec3f(0.0), snapped_pos, max_trace_dist, blocks::AIR, NO_AXIS);
 }
 
 fn axis_normal(axis: u32, dir: vec3f) -> vec3f {

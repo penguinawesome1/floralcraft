@@ -17,13 +17,12 @@ import {
   createConfig,
   GEN_SIDE,
   DAY_LENGTH_SECONDS,
-  CHUNK_SIDE_SHIFT,
+  CHUNK_SIDE,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
 
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 200;
-const CHUNK_SIDE = 1 << CHUNK_SIDE_SHIFT;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
@@ -81,7 +80,7 @@ export class Renderer {
     this.camera = new Camera(
       this.device,
       0.002,
-      200.0,
+      20.0,
       vec3.fromValues(1000, 400, 1000),
     );
     this.config = createConfig(this.device, {
@@ -128,7 +127,7 @@ export class Renderer {
     }
     if (inputState.keys.has("BracketRight")) {
       this.maxTraceDist *= 1.05;
-      this.maxTraceDist = Math.min(2000, this.maxTraceDist);
+      this.maxTraceDist = Math.min((GEN_SIDE / 2 - 1) * 8, this.maxTraceDist);
     }
 
     const deltaTime = this.clock.update();

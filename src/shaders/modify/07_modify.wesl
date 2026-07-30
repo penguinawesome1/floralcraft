@@ -1,10 +1,9 @@
-import constants::{CHUNK_SIDE_SHIFT, BITS_PER_ID};
+import constants::{CHUNK_SIDE, BITS_PER_ID};
 import package::config::Config;
 import package::core::{pos, flags, block_target::BlockTarget};
 import package::gen::core::{FreeList, OUT_OF_MEMORY};
 import package::modify::core::ChunkAllocResult;
 
-const CHUNK_SIDE = 1u << CHUNK_SIDE_SHIFT;
 const CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
 const CHUNK_LEN = CHUNK_VOLUME * BITS_PER_ID / 32u;
 const BLOCK_MASK = (1u << BITS_PER_ID) - 1u;

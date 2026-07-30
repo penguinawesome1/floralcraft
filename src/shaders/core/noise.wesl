@@ -26,12 +26,19 @@ const CAVE_CRUST_THICKNESS: f32 = 1.5;
 
 // -- Internal Hash Constants --
 const HASH_SINE_SCALE: f32 = 43758.5453123;
+
+const HASH1_DOT: f32 = 127.1;
+
 const HASH2_DOT1: vec2f = vec2f(127.1, 311.7);
 const HASH2_DOT2: vec2f = vec2f(269.5, 183.3);
 
 const HASH3_DOT1: vec3f = vec3f(127.1, 311.7, 74.7);
 const HASH3_DOT2: vec3f = vec3f(269.5, 183.3, 246.1);
 const HASH3_DOT3: vec3f = vec3f(113.5, 271.9, 124.6);
+
+fn hash2d_to_1d(p: vec2f) -> f32 {
+    return fract(sin(dot(p, HASH2_DOT1)) * HASH_SINE_SCALE);
+}
 
 fn _hash2d(p: vec2f) -> vec2f {
     let p2 = vec2f(dot(p, HASH2_DOT1), dot(p, HASH2_DOT2));

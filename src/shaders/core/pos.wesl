@@ -1,4 +1,4 @@
-import constants::{GEN_SIDE, CHUNK_SIDE_SHIFT};
+import constants::{GEN_SIDE, CHUNK_SIDE_SHIFT, CHUNK_SIDE};
 
 fn chunk(global_pos: vec3i) -> vec3i {
     return global_pos >> vec3u(CHUNK_SIDE_SHIFT);
@@ -26,6 +26,6 @@ fn is_in_range(chunk_pos: vec3i, player_chunk: vec3i) -> bool {
 }
 
 fn local(global_pos: vec3i) -> vec3u {
-    let mask = i32((1u << CHUNK_SIDE_SHIFT) - 1u);
+    let mask = i32(CHUNK_SIDE - 1u);
     return vec3u(global_pos & vec3i(mask));
 }

@@ -17,8 +17,7 @@ fn _flag(wrapped: vec3u) {
     gen_flags[addr.word] |= 1u << addr.bit;
 }
 
-fn lookup(chunk_pos: vec3i, player_chunk: vec3i) -> LookupResult {
-    if !pos::is_in_range(chunk_pos, player_chunk) { return LookupResult(false, 1u, blocks::AIR); }
+fn lookup(chunk_pos: vec3i) -> LookupResult {
     let wrapped = pos::wrapped_chunk(chunk_pos);
 
     let addr = flags::addr(wrapped >> vec3u(1u), GEN_SIDE >> 1u);

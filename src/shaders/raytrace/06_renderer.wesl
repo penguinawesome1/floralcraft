@@ -3,7 +3,7 @@ import package::core::{blocks, pos, camera::Camera, block_target::BlockTarget};
 import package::raytrace::bindings::config;
 import package::raytrace::support::dda::{X_AXIS, Y_AXIS, NO_AXIS};
 import package::raytrace::support::{dda, dda::Ray};
-import package::raytrace::materials::{sky, pbr};
+import package::raytrace::shading::{sky, pbr};
 
 @group(0) @binding(4) var<storage, read_write> block_target: BlockTarget;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
@@ -35,8 +35,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
 
     let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
     let ray = Ray(cam.pos, dir);
-    let player_chunk = pos::chunk(vec3i(floor(cam.pos)));
-    let res = dda::trace(ray, player_chunk);
+    let res = dda::trace(ray, config.max_trace_dist);
 
     let crosshair_px = canvas_size / 2u;
     if all(px.xy == crosshair_px) {
@@ -61,7 +60,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
         if IS_DEBUG_MODE {
             color = _debug_color(res.last_hit_axis);
         } else {
-            color = pbr::color(dir, res, cam.pos, player_chunk);
+            color = pbr::color(dir, res);
         }
     }
     textureStore(t_output, px.xy, color);

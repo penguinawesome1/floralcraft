@@ -1,12 +1,12 @@
 import package::raytrace::bindings::config;
 
 const PI = 3.1415;
-const NIGHT_ZENITH = vec3f(0.02, 0.02, 0.05);
-const NIGHT_HORIZON = vec3f(0.05, 0.05, 0.10);
-const DAWN_ZENITH = vec3f(0.25, 0.30, 0.55);
-const DAWN_HORIZON = vec3f(0.90, 0.55, 0.35);
-const DAY_ZENITH = vec3f(0.30, 0.55, 0.95);
-const DAY_HORIZON = vec3f(0.70, 0.80, 0.95);
+const NIGHT_ZENITH = vec3f(0.001, 0.002, 0.005);
+const NIGHT_HORIZON = vec3f(0.004, 0.005, 0.012);
+const DAWN_ZENITH = vec3f(0.15, 0.20, 0.45);
+const DAWN_HORIZON = vec3f(0.80, 0.40, 0.20);
+const DAY_ZENITH = vec3f(0.20, 0.45, 0.90);
+const DAY_HORIZON = vec3f(0.65, 0.78, 0.95);
 
 fn sun_dir() -> vec3f {
     let angle = (config.time_of_day - 0.25) * 2.0 * PI;
