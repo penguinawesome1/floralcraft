@@ -155,7 +155,7 @@ export class Renderer {
     this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
     commandEncoder.clearBuffer(this.resources.load_list);
-    this.encodeRaytracePass(commandEncoder, qSet);
+    this.encodeRenderPass(commandEncoder, qSet);
     this.encodeModifyStorePass(commandEncoder);
     this.encodePresentPass(commandEncoder, qSet);
 
@@ -221,7 +221,7 @@ export class Renderer {
       Number(timestamps[1] - timestamps[0]) / 1_000_000;
     const genMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
     const mipMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
-    const raytraceMilliseconds =
+    const renderMilliseconds =
       Number(timestamps[7] - timestamps[6]) / 1_000_000;
     const presentMilliseconds =
       Number(timestamps[9] - timestamps[8]) / 1_000_000;
@@ -230,7 +230,7 @@ export class Renderer {
        Free-Clear-Compact-Indirect Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
-       Raytrace Pass: ${raytraceMilliseconds.toFixed(4)} ms\n
+       Render Pass: ${renderMilliseconds.toFixed(4)} ms\n
        Present Pass: ${presentMilliseconds.toFixed(4)} ms
      `);
   }
@@ -359,12 +359,12 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeRaytracePass(
+  private encodeRenderPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const pass = commandEncoder.beginComputePass({
-      label: "raytrace pass",
+      label: "render pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
@@ -374,9 +374,9 @@ export class Renderer {
             }
           : undefined,
     });
-    pass.setPipeline(this.pipelines.raytrace);
-    pass.setBindGroup(0, this.bindGroups.raytraceStatic);
-    pass.setBindGroup(1, this.bindGroups.raytraceDynamic);
+    pass.setPipeline(this.pipelines.render);
+    pass.setBindGroup(0, this.bindGroups.renderStatic);
+    pass.setBindGroup(1, this.bindGroups.renderDynamic);
     pass.dispatchWorkgroups(
       Math.ceil(this.canvas.width / 8),
       Math.ceil(this.canvas.height / 8),
@@ -464,9 +464,9 @@ export class Renderer {
   private createDynamicBindGroups(): DynamicBindGroups {
     const renderTargetView = this.renderTarget.createView();
 
-    const raytraceDynamic = this.device.createBindGroup({
-      label: "raytrace dynamic bind group",
-      layout: this.bindGroupLayouts.raytraceDynamic,
+    const renderDynamic = this.device.createBindGroup({
+      label: "render dynamic bind group",
+      layout: this.bindGroupLayouts.renderDynamic,
       entries: [
         { binding: 0, resource: renderTargetView },
         { binding: 1, resource: { buffer: this.camera.buffer } },
@@ -483,6 +483,6 @@ export class Renderer {
       ],
     });
 
-    return { raytraceDynamic, present };
+    return { renderDynamic, present };
   }
 }

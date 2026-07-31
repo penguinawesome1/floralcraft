@@ -1,5 +1,5 @@
 import package::core::noise;
-import package::raytrace::shading::cie_data::{CIE_TABLE_SIZE, CIE_TABLE_STEP, cie_table};
+import package::render::shading::cie_data::{CIE_TABLE_SIZE, CIE_TABLE_STEP, cie_table};
 
 const _LAMBDA_MIN: f32 = 380.0;
 const _LAMBDA_MAX: f32 = 720.0;

@@ -1,5 +1,5 @@
 import package::core::{pos, blocks};
-import package::raytrace::support::{lookup, read_pool};
+import package::render::traversal::{lookup, read_pool};
 
 const NO_AXIS = 0u;
 const X_AXIS = 1u;

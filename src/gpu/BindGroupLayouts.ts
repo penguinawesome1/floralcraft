@@ -5,8 +5,8 @@ export type BindGroupLayouts = {
   indirect: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
   mip: GPUBindGroupLayout;
-  raytraceStatic: GPUBindGroupLayout;
-  raytraceDynamic: GPUBindGroupLayout;
+  renderStatic: GPUBindGroupLayout;
+  renderDynamic: GPUBindGroupLayout;
   modify: GPUBindGroupLayout;
   store: GPUBindGroupLayout;
   present: GPUBindGroupLayout;
@@ -176,9 +176,9 @@ function createMipLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
-function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
+function createRenderStaticLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
-    label: "raytrace static bind group layout",
+    label: "render static bind group layout",
     entries: [
       // chunk_pool
       {
@@ -214,9 +214,9 @@ function createRaytraceStaticLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
-function createRaytraceDynamicLayout(device: GPUDevice): GPUBindGroupLayout {
+function createRenderDynamicLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
-    label: "raytrace dynamic bind group layout",
+    label: "render dynamic bind group layout",
     entries: [
       // t_output
       {
@@ -342,8 +342,8 @@ export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
     indirect: createIndirectLayout(device),
     gen: createGenLayout(device),
     mip: createMipLayout(device),
-    raytraceStatic: createRaytraceStaticLayout(device),
-    raytraceDynamic: createRaytraceDynamicLayout(device),
+    renderStatic: createRenderStaticLayout(device),
+    renderDynamic: createRenderDynamicLayout(device),
     modify: createModifyLayout(device),
     store: createStoreLayout(device),
     present: createPresentLayout(device),

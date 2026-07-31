@@ -1,9 +1,9 @@
 import package::config::IS_DEBUG_MODE;
 import package::core::{blocks, pos, camera::Camera, block_target::BlockTarget};
-import package::raytrace::bindings::config;
-import package::raytrace::support::dda::{X_AXIS, Y_AXIS, NO_AXIS};
-import package::raytrace::support::{dda, dda::Ray};
-import package::raytrace::shading::{sky, pbr};
+import package::render::bindings::config;
+import package::render::traversal::dda::{X_AXIS, Y_AXIS, NO_AXIS};
+import package::render::traversal::{dda, dda::Ray};
+import package::render::shading::{sky, path_tracer};
 
 @group(0) @binding(4) var<storage, read_write> block_target: BlockTarget;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
@@ -60,7 +60,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
         if IS_DEBUG_MODE {
             color = _debug_color(res.last_hit_axis);
         } else {
-            color = pbr::color(dir, res);
+            color = path_tracer::color(dir, res);
         }
     }
     textureStore(t_output, px.xy, color);

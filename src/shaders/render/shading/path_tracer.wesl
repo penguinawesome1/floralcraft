@@ -1,8 +1,8 @@
-import package::raytrace::bindings::config;
-import package::core::{blocks, noise};
-import package::raytrace::support::dda::{TraceResult, Ray};
-import package::raytrace::support::dda;
-import package::raytrace::shading::{sky, spectral};
+import package::core::blocks;
+import package::render::bindings::config;
+import package::render::traversal::dda::{TraceResult, Ray};
+import package::render::traversal::dda;
+import package::render::shading::{sky, pbr, spectral};
 
 const PI = 3.14159265;
 const EPS = 1e-4;
@@ -22,54 +22,6 @@ fn _block_material(id: u32) -> BlockMaterial {
         case blocks::STONE: { return BlockMaterial(vec3f(0.0, 0.0, -0.73), 0.65, 0.0, 0.04, 0.0); }
         default: { return BlockMaterial(vec3f(15.0, -6.0, -0.2), 0.5, 0.5, 0.04, 15.0); }
     }
-}
-
-fn _direction_basis(N: vec3f) -> mat3x3f {
-    let up = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(N.y) > 0.99);
-    let tangent = normalize(cross(up, N));
-    let bitangent = cross(N, tangent);
-    return mat3x3f(tangent, bitangent, N);
-}
-
-fn _sample_cosine_hemisphere(N: vec3f, seed: vec2f) -> vec3f {
-    let u1 = noise::hash2d_to_1d(seed);
-    let u2 = noise::hash2d_to_1d(seed + vec2f(13.37, 42.11));
-
-    let r = sqrt(u1);
-    let phi = 2.0 * PI * u2;
-
-    let local_dir = vec3f(r * cos(phi), r * sin(phi), sqrt(max(0.0, 1.0 - u1)));
-    let basis = _direction_basis(N);
-    return normalize(basis * local_dir);
-}
-
-fn _sample_rough_bounce(curr_dir: vec3f, N: vec3f, roughness: f32, seed: vec2f) -> vec3f {
-    let spec_dir = reflect(curr_dir, N);
-    let diff_dir = _sample_cosine_hemisphere(N, seed);
-    return normalize(mix(spec_dir, diff_dir, roughness * roughness));
-}
-
-fn _distribution_GGX(N: vec3f, H: vec3f, roughness: f32) -> f32 {
-    let a = roughness * roughness;
-    let a2 = a * a;
-    let NdotH = max(dot(N, H), 0.0);
-    let denom = NdotH * NdotH * (a2 - 1.0) + 1.0;
-    return a2 / (PI * denom * denom);
-}
-
-fn _geometry_smith(N: vec3f, V: vec3f, L: vec3f, roughness: f32) -> f32 {
-    let r = roughness + 1.0;
-    let k = (r * r) / 8.0;
-    let NdotV = max(dot(N, V), 0.0);
-    let NdotL = max(dot(N, L), 0.0);
-    let gv = NdotV / (NdotV * (1.0 - k) + k);
-    let gl = NdotL / (NdotL * (1.0 - k) + k);
-    return gv * gl;
-}
-
-fn _fresnel_schlick_spectral(V: vec3f, H: vec3f, F0: vec4f) -> vec4f {
-    let VdotH = max(dot(V, H), 0.0);
-    return F0 + (vec4f(1.0) - F0) * pow(1.0 - VdotH, 5.0);
 }
 
 fn _apply_fog(srgb: vec3f, initial_dir: vec3f, initial_res: TraceResult) -> vec3f {
@@ -107,14 +59,15 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         let V = -curr_dir;
         let H = normalize(V + L);
 
-        let eps = max(0.005, length(curr_res.hit_pos) * 1e-5);
+        let eps = max(EPS, length(curr_res.hit_pos) * EPS);
         let shadow_origin = curr_res.hit_pos + N * eps;
 
         let f0_dielectric = vec4f(material.f0);
         let F0 = mix(f0_dielectric, spectral_albedo, vec4f(material.metallic));
-        let F = _fresnel_schlick_spectral(V, H, F0);
-        let D = _distribution_GGX(N, H, material.roughness);
-        let G = _geometry_smith(N, V, L, material.roughness);
+        let F = pbr::fresnel_schlick_spectral(V, H, F0);
+        let alpha = material.roughness * material.roughness;
+        let D = pbr::distribution_GGX(N, H, alpha);
+        let G = pbr::geometry_smith(N, V, L, alpha);
 
         let NdotL = clamp(dot(N, L), 0.0, 1.0);
         let NdotV = clamp(dot(N, V), 0.0, 1.0);
@@ -142,7 +95,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         radiance += (diffuse + specular) * NdotL * throughput * visibility;
 
         let bounce_seed = pixel_seed + vec2f(f32(bounce) * 17.13, f32(bounce) * 31.41);
-        let next_dir = _sample_rough_bounce(curr_dir, N, material.roughness, bounce_seed);
+        let next_dir = pbr::sample_rough_bounce(curr_dir, N, material.roughness, bounce_seed);
         let next_ray = Ray(shadow_origin, next_dir);
 
         let NdotNext = max(dot(N, next_dir), 0.0);

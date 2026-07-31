@@ -12,11 +12,11 @@ export type StaticBindGroups = {
   mip: GPUBindGroup;
   modify: GPUBindGroup;
   store: GPUBindGroup;
-  raytraceStatic: GPUBindGroup;
+  renderStatic: GPUBindGroup;
 };
 
 export type DynamicBindGroups = {
-  raytraceDynamic: GPUBindGroup;
+  renderDynamic: GPUBindGroup;
   present: GPUBindGroup;
 };
 
@@ -119,14 +119,14 @@ function createMipGroup(
   });
 }
 
-function createRaytraceStaticGroup(
+function createRenderStaticGroup(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
 ): GPUBindGroup {
   return device.createBindGroup({
-    label: "raytrace static bind group",
-    layout: layouts.raytraceStatic,
+    label: "render static bind group",
+    layout: layouts.renderStatic,
     entries: [
       { binding: 0, resource: { buffer: resources.chunk_pool } },
       { binding: 1, resource: resources.chunk_index_map.createView() },
@@ -187,7 +187,7 @@ export function createStaticBindGroups(
     indirect: createIndirectGroup(device, layouts, resources),
     gen: createGenGroup(device, layouts, resources, camera),
     mip: createMipGroup(device, layouts, resources),
-    raytraceStatic: createRaytraceStaticGroup(device, layouts, resources),
+    renderStatic: createRenderStaticGroup(device, layouts, resources),
     modify: createModifyGroup(device, layouts, resources, config),
     store: createStoreGroup(device, layouts, resources),
   };

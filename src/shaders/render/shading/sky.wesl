@@ -1,4 +1,4 @@
-import package::raytrace::bindings::config;
+import package::render::bindings::config;
 
 const PI = 3.1415;
 const NIGHT_ZENITH = vec3f(0.001, 0.002, 0.005);

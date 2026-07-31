@@ -3,16 +3,16 @@ import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
 
-import freeWesl from "../shaders/gen/00_free.wesl?link";
-import clearWesl from "../shaders/gen/01_clear.wesl?link";
-import compactWesl from "../shaders/gen/02_compact.wesl?link";
-import indirectWesl from "../shaders/gen/03_indirect.wesl?link";
-import genWesl from "../shaders/gen/04_gen.wesl?link";
-import mipWesl from "../shaders/gen/05_mip.wesl?link";
-import raytraceWesl from "../shaders/raytrace/06_renderer.wesl?link";
-import modifyWesl from "../shaders/modify/07_modify.wesl?link";
-import storeWesl from "../shaders/modify/08_store.wesl?link";
-import presentWesl from "../shaders/09_present.wesl?link";
+import freeWesl from "../shaders/gen/free.wesl?link";
+import clearWesl from "../shaders/gen/clear.wesl?link";
+import compactWesl from "../shaders/gen/compact.wesl?link";
+import indirectWesl from "../shaders/gen/indirect.wesl?link";
+import genWesl from "../shaders/gen/gen.wesl?link";
+import mipWesl from "../shaders/gen/mip.wesl?link";
+import renderWesl from "../shaders/render/render.wesl?link";
+import modifyWesl from "../shaders/modify/modify.wesl?link";
+import storeWesl from "../shaders/modify/store.wesl?link";
+import presentWesl from "../shaders/present.wesl?link";
 
 export type Pipelines = {
   free: GPUComputePipeline;
@@ -21,7 +21,7 @@ export type Pipelines = {
   indirect: GPUComputePipeline;
   gen: GPUComputePipeline;
   mip: GPUComputePipeline;
-  raytrace: GPUComputePipeline;
+  render: GPUComputePipeline;
   modify: GPUComputePipeline;
   store: GPUComputePipeline;
   present: GPURenderPipeline;
@@ -120,14 +120,14 @@ function createMipPipeline(
   });
 }
 
-function createRaytracePipeline(
+function createRenderPipeline(
   device: GPUDevice,
   layout: GPUPipelineLayout,
   module: GPUShaderModule,
   is_debug_mode: boolean,
 ): GPUComputePipeline {
   return device.createComputePipeline({
-    label: "raytrace pipeline",
+    label: "render pipeline",
     layout,
     compute: {
       module,
@@ -218,10 +218,10 @@ export async function createPipelines(
     mipWesl,
     "mip shader module",
   );
-  const raytraceModule = await loadShaderModule(
+  const renderModule = await loadShaderModule(
     weslDevice,
-    raytraceWesl,
-    "raytrace shader module",
+    renderWesl,
+    "render shader module",
   );
   const modifyModule = await loadShaderModule(
     weslDevice,
@@ -256,10 +256,10 @@ export async function createPipelines(
     ),
     gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
     mip: createMipPipeline(device, pipeline_layouts.mip, mipModule),
-    raytrace: createRaytracePipeline(
+    render: createRenderPipeline(
       device,
-      pipeline_layouts.raytrace,
-      raytraceModule,
+      pipeline_layouts.render,
+      renderModule,
       is_debug_mode,
     ),
     modify: createModifyPipeline(device, pipeline_layouts.modify, modifyModule),
