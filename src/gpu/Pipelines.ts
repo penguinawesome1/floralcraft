@@ -1,5 +1,4 @@
 import { link, makeWeslDevice, type LinkParams } from "wesl";
-import { createPipelineLayouts } from "./PipelineLayouts.ts";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
 
@@ -50,126 +49,156 @@ async function validateShader(module: GPUShaderModule) {
 
 function createFreePipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "free pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "free pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "free_slab" },
   });
 }
 
 function createClearPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "clear pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "clear pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "clear_slab" },
   });
 }
 
 function createCompactPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "compact pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "compact pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "compact_load_set" },
   });
 }
 
 function createIndirectPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "indirect pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "indirect pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "write_indirect_args" },
   });
 }
 
 function createGenPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "gen pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "gen pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "gen_chunk" },
   });
 }
 
 function createMipPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "mip pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "mip pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "expand_skip_mip" },
   });
 }
 
 function createRenderPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayouts: GPUBindGroupLayout[],
   module: GPUShaderModule,
-  is_debug_mode: boolean,
+  isDebugMode: boolean,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "render pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "render pipeline layout",
+      bindGroupLayouts: bgLayouts,
+    }),
     compute: {
       module,
       entryPoint: "render",
-      constants: { IS_DEBUG_MODE: is_debug_mode ? 1 : 0 },
+      constants: { IS_DEBUG_MODE: isDebugMode ? 1 : 0 },
     },
   });
 }
 
 function createModifyPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "modify pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "modify pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "modify_target_block" },
   });
 }
 
 function createStorePipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
     label: "store pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "store pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     compute: { module, entryPoint: "store_chunk_num" },
   });
 }
 
 function createPresentPipeline(
   device: GPUDevice,
-  layout: GPUPipelineLayout,
+  bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
   format: GPUTextureFormat,
 ): GPURenderPipeline {
   return device.createRenderPipeline({
     label: "present pipeline",
-    layout,
+    layout: device.createPipelineLayout({
+      label: "present pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
     vertex: { module, entryPoint: "vs_main" },
     fragment: {
       module,
@@ -183,8 +212,8 @@ function createPresentPipeline(
 export async function createPipelines(
   device: GPUDevice,
   format: GPUTextureFormat,
-  bind_group_layouts: BindGroupLayouts,
-  is_debug_mode: boolean,
+  bgLayouts: BindGroupLayouts,
+  isDebugMode: boolean,
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
@@ -239,34 +268,28 @@ export async function createPipelines(
     "present shader module",
   );
 
-  const pipeline_layouts = createPipelineLayouts(device, bind_group_layouts);
-
   return {
-    free: createFreePipeline(device, pipeline_layouts.free, freeModule),
-    clear: createClearPipeline(device, pipeline_layouts.clear, clearModule),
-    compact: createCompactPipeline(
-      device,
-      pipeline_layouts.compact,
-      compactModule,
-    ),
+    free: createFreePipeline(device, bgLayouts.free, freeModule),
+    clear: createClearPipeline(device, bgLayouts.clear, clearModule),
+    compact: createCompactPipeline(device, bgLayouts.compact, compactModule),
     indirect: createIndirectPipeline(
       device,
-      pipeline_layouts.indirect,
+      bgLayouts.indirect,
       indirectModule,
     ),
-    gen: createGenPipeline(device, pipeline_layouts.gen, genModule),
-    mip: createMipPipeline(device, pipeline_layouts.mip, mipModule),
+    gen: createGenPipeline(device, bgLayouts.gen, genModule),
+    mip: createMipPipeline(device, bgLayouts.mip, mipModule),
     render: createRenderPipeline(
       device,
-      pipeline_layouts.render,
+      [bgLayouts.renderStatic, bgLayouts.renderDynamic],
       renderModule,
-      is_debug_mode,
+      isDebugMode,
     ),
-    modify: createModifyPipeline(device, pipeline_layouts.modify, modifyModule),
-    store: createStorePipeline(device, pipeline_layouts.store, storeModule),
+    modify: createModifyPipeline(device, bgLayouts.modify, modifyModule),
+    store: createStorePipeline(device, bgLayouts.store, storeModule),
     present: createPresentPipeline(
       device,
-      pipeline_layouts.present,
+      bgLayouts.present,
       presentModule,
       format,
     ),
