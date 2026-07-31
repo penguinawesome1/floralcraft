@@ -1,12 +1,13 @@
-import constants::{GEN_SIDE, CHUNK_SIDE_SHIFT, CHUNK_SIDE};
+import constants::{GEN_SIDE, CHUNK_SIDE, CHUNK_SIDE};
 
 fn chunk(global_pos: vec3i) -> vec3i {
-    return global_pos >> vec3u(CHUNK_SIDE_SHIFT);
+    let shift = u32(firstTrailingBit(CHUNK_SIDE));
+    return global_pos >> vec3u(shift);
 }
 
 fn wrapped_chunk(chunk_pos: vec3i) -> vec3u {
-    let wrapped = ((chunk_pos % i32(GEN_SIDE)) + i32(GEN_SIDE)) % i32(GEN_SIDE);
-    return vec3u(wrapped);
+    let mask = vec3i(i32(GEN_SIDE) - 1i);
+    return vec3u(chunk_pos & mask);
 }
 
 fn unwrapped_chunk(wrapped: vec3u, player_chunk: vec3i) -> vec3i {

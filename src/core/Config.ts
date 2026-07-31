@@ -1,7 +1,8 @@
-export const GEN_SIDE = 256; // must be even, preferably power of 2
-export const BITS_PER_ID = 8; // must be a factor of 32
-export const CHUNK_SIDE_SHIFT = 3;
+const GEN_SIDE_SHIFT = 9;
+const CHUNK_SIDE_SHIFT = 3;
+export const GEN_SIDE = 1 << GEN_SIDE_SHIFT;
 export const CHUNK_SIDE = 1 << CHUNK_SIDE_SHIFT;
+export const BITS_PER_ID = 8; // must be a factor of 32
 export const DAY_LENGTH_SECONDS = 600;
 export const MAX_CHUNK_BATCH_SIZE = 16384;
 export const MAX_CHUNKS_LOADED = 256_000;
@@ -11,7 +12,6 @@ export const CHUNK_LEN = Math.ceil((CHUNK_SIDE ** 3 * BITS_PER_ID) / 32);
 export const SHADER_CONFIG = {
   GEN_SIDE,
   MAX_CHUNK_BATCH_SIZE,
-  CHUNK_SIDE_SHIFT,
   CHUNK_SIDE,
   BITS_PER_ID,
 } as const;
