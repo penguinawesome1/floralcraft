@@ -1,6 +1,8 @@
 import "./styles.css";
 import { Renderer } from "./core/Renderer.ts";
 import { InputManager } from "./core/Input.ts";
+import thanksgivingLoveUrl from "./assets/audio/thanksgiving-love.m4a";
+import nightTrackUrl from "./assets/audio/12-am.m4a";
 
 class GameApp {
   private readonly canvas: HTMLCanvasElement;
@@ -21,9 +23,9 @@ class GameApp {
     this.inputManager = new InputManager(this.canvas);
     this.renderer = new Renderer(this.canvas);
 
-    this.daytimeTrack = new Audio("/floralcraft/audio/thanksgiving-love.m4a");
+    this.daytimeTrack = new Audio(thanksgivingLoveUrl);
     this.daytimeTrack.loop = true;
-    this.nighttimeTrack = new Audio("/floralcraft/audio/12-am.m4a");
+    this.nighttimeTrack = new Audio(nightTrackUrl);
     this.nighttimeTrack.loop = true;
     this.currentTrack = this.daytimeTrack;
 

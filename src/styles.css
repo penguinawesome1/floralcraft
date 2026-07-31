@@ -21,7 +21,7 @@
     oklch(0.19 0.01 254 / 0.4) 0%,
     oklch(0.12 0.01 254 / 0.85) 100%
   );
-  --loading-wallpaper: url("/floralcraft/loading-wallpaper.webp");
+  --loading-wallpaper: url("/loading-wallpaper.webp");
 
   background-image: var(--gradient-overlay), var(--loading-wallpaper);
   background-repeat: no-repeat;

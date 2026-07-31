@@ -1,4 +1,4 @@
-const GEN_SIDE_SHIFT = 9;
+const GEN_SIDE_SHIFT = 8;
 const CHUNK_SIDE_SHIFT = 3;
 export const GEN_SIDE = 1 << GEN_SIDE_SHIFT;
 export const CHUNK_SIDE = 1 << CHUNK_SIDE_SHIFT;
