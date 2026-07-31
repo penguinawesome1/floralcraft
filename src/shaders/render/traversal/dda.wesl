@@ -52,9 +52,16 @@ fn _step(
         s.t_max = t_max + select(vec3f(0.0), delta_t, step_mask);
         s.snapped_pos = snapped_pos + select(vec3i(0), grid_step, step_mask);
     } else {
-        let adaptive_eps = max(EPS, t * EPS);
-        s.snapped_pos = vec3i(floor(s.hit_pos + ray.dir * adaptive_eps));
-        s.t_max += select(vec3f(0.0), delta_t * f32(scale), step_mask);
+        s.t_max = t_max + select(vec3f(0.0), delta_t * f32(scale), step_mask);
+
+        let safe_hit = ray.origin + ray.dir * (t + EPS);
+        let next_snapped = vec3i(floor(safe_hit));
+
+        let step_scale = i32(scale);
+        let chunk_base = snapped_pos & ~vec3i(step_scale - 1i);
+        let exact_boundary = chunk_base + select(vec3i(-1), vec3i(step_scale), grid_step > vec3i(0));
+
+        s.snapped_pos = select(next_snapped, exact_boundary, step_mask);
     }
 
     return s;
