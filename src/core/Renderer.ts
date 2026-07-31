@@ -308,7 +308,7 @@ export class Renderer {
     pass.setPipeline(this.pipelines.compact);
     pass.setBindGroup(0, this.bindGroups.compact);
     const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
-    pass.dispatchWorkgroups(Math.ceil(totalWords / 64), 1, 1);
+    pass.dispatchWorkgroups(Math.ceil(totalWords / 128), 1, 1);
 
     pass.setPipeline(this.pipelines.indirect);
     pass.setBindGroup(0, this.bindGroups.indirect);
