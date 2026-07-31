@@ -1,5 +1,5 @@
-import package::core::blocks;
 import package::render::bindings::config;
+import package::core::blocks;
 import package::render::traversal::dda::{TraceResult, Ray};
 import package::render::traversal::dda;
 import package::render::shading::{sky, pbr, spectral};
@@ -17,10 +17,21 @@ struct BlockMaterial {
 
 fn _block_material(id: u32) -> BlockMaterial {
     switch id {
-        case blocks::GRASS: { return BlockMaterial(vec3f(-28.0, 25.0, -4.2), 0.6, 0.0, 0.04, 0.0); }
-        case blocks::DIRT: { return BlockMaterial(vec3f(0.0, 1.2, -1.8), 0.92, 0.0, 0.04, 0.0); }
-        case blocks::STONE: { return BlockMaterial(vec3f(0.0, 0.0, -0.73), 0.65, 0.0, 0.04, 0.0); }
-        default: { return BlockMaterial(vec3f(15.0, -6.0, -0.2), 0.5, 0.5, 0.04, 15.0); }
+        case blocks::GRASS: {
+            return BlockMaterial(vec3f(-12.0, 12.0, -2.2), 0.5, 0.0, 0.04, 0.0);
+        }
+        case blocks::DIRT: {
+            return BlockMaterial(vec3f(5.8, 1.2, -4.3), 0.92, 0.0, 0.04, 0.0);
+        }
+        case blocks::STONE: {
+            return BlockMaterial(vec3f(0.5, -0.1, -1.0), 0.65, 0.0, 0.04, 0.0);
+        }
+        case blocks::BEDROCK: {
+            return BlockMaterial(vec3f(0.4, -0.1, -1.7), 0.95, 0.0, 0.04, 0.0);
+        }
+        default: {
+            return BlockMaterial(vec3f(1.0, 1.0, 1.0), 0.0, 0.0, 0.04, 15.0);
+        }
     }
 }
 
@@ -42,15 +53,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
     var radiance = vec4f(0.0);
     var throughput = vec4f(1.0);
 
-    for (var bounce = 0u; bounce < 2u; bounce++) {
-        if curr_res.block_id == blocks::AIR {
-            let sky_color = sky::color(curr_dir);
-            let sky_spectral = spectral::rgb_to_spectrum(sky_color, wavelengths);
-            let cave_depth_factor = clamp((curr_res.hit_pos.y - 10.0) / 40.0, 0.0, 1.0);
-            radiance += sky_spectral * throughput * cave_depth_factor;
-            break;
-        }
-
+    for (var bounce = 0u; bounce < 3u; bounce++) {
         let material = _block_material(curr_res.block_id);
         let spectral_albedo = spectral::rgb_to_spectrum(material.spectral_coeffs, wavelengths);
 
@@ -59,11 +62,10 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         let V = -curr_dir;
         let H = normalize(V + L);
 
-        let eps = max(EPS, length(curr_res.hit_pos) * EPS);
+        let eps = max(0.005, length(curr_res.hit_pos) * 1e-5);
         let shadow_origin = curr_res.hit_pos + N * eps;
 
-        let f0_dielectric = vec4f(material.f0);
-        let F0 = mix(f0_dielectric, spectral_albedo, vec4f(material.metallic));
+        let F0 = mix(vec4f(material.f0), spectral_albedo, material.metallic);
         let F = pbr::fresnel_schlick_spectral(V, H, F0);
         let alpha = material.roughness * material.roughness;
         let D = pbr::distribution_GGX(N, H, alpha);
@@ -87,12 +89,15 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
             let emitter_spectrum = spectral::rgb_to_spectrum(material.spectral_coeffs, wavelengths);
             let emission_spectral = emitter_spectrum * material.emission;
             radiance += emission_spectral * throughput;
+            break;
         }
 
         let specular = (vec4f(D * G) * F) / max(4.0 * NdotV * NdotL, 0.001);
         let kD = (vec4f(1.0) - F) * (1.0 - material.metallic);
         let diffuse = kD * spectral_albedo / PI;
-        radiance += (diffuse + specular) * NdotL * throughput * visibility;
+
+        let direct_light = (diffuse + specular) * NdotL * visibility;
+        radiance += direct_light * throughput;
 
         let bounce_seed = pixel_seed + vec2f(f32(bounce) * 17.13, f32(bounce) * 31.41);
         let next_dir = pbr::sample_rough_bounce(curr_dir, N, material.roughness, bounce_seed);
@@ -104,14 +109,21 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         curr_dir = next_dir;
         curr_res = dda::trace(next_ray, 32.0);
 
-        if length(throughput) < 0.01 { break; }
+        if curr_res.block_id == 0u {
+            let sky_color = sky::color(curr_dir);
+            let sky_spectral = spectral::rgb_to_spectrum(sky_color, wavelengths);
+            radiance += sky_spectral * throughput;
+            break;
+        }
+
+        if length(throughput) < 0.03 { break; }
     }
 
     let xyz = spectral::cie_xyz(wavelengths, radiance);
     let srgb = spectral::xyz_to_linear_srgb(xyz);
     let fogged = _apply_fog(srgb, initial_dir, initial_res);
     let mapped = fogged / (fogged + vec3f(1.0));
-    let out = pow(mapped, vec3f(1.0 / 2.2));
+    let gamma_corrected = pow(mapped, vec3f(1.0 / 2.2));
 
-    return vec4f(out, 1.0);
+    return vec4f(gamma_corrected, 1.0);
 }

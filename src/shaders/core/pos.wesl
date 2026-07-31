@@ -1,4 +1,4 @@
-import constants::{GEN_SIDE, CHUNK_SIDE, CHUNK_SIDE};
+import constants::{GEN_SIDE, CHUNK_SIDE};
 
 fn chunk(global_pos: vec3i) -> vec3i {
     let shift = u32(firstTrailingBit(CHUNK_SIDE));

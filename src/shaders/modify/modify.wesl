@@ -1,6 +1,6 @@
 import constants::{CHUNK_SIDE, BITS_PER_ID};
 import package::config::Config;
-import package::core::{pos, flags, block_target::BlockTarget};
+import package::core::{pos, flags, blocks, block_target::BlockTarget};
 import package::gen::core::{FreeList, OUT_OF_MEMORY};
 import package::modify::core::ChunkAllocResult;
 

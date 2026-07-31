@@ -29,7 +29,7 @@ const HASH_SINE_SCALE: f32 = 43758.5453123;
 
 const HASH1_DOT: f32 = 127.1;
 
-const HASH2_DOT1: vec2f = vec2f(127.1, 311.7);
+const HASH2_DOT1: vec2f = vec2f(127.1, 311.7); // or this.. vec2f(12.9898, 78.233)
 const HASH2_DOT2: vec2f = vec2f(269.5, 183.3);
 
 const HASH3_DOT1: vec3f = vec3f(127.1, 311.7, 74.7);
@@ -37,7 +37,13 @@ const HASH3_DOT2: vec3f = vec3f(269.5, 183.3, 246.1);
 const HASH3_DOT3: vec3f = vec3f(113.5, 271.9, 124.6);
 
 fn hash2d_to_1d(p: vec2f) -> f32 {
-    return fract(sin(dot(p, HASH2_DOT1)) * HASH_SINE_SCALE);
+    let src = bitcast<vec2u>(p);
+    var m = src * 1664525u + 1013904223u;
+    m.x += m.y * 1664525u;
+    m.y += m.x * 1664525u;
+    m ^= m >> vec2u(16u);
+    m.x += m.y * 1664525u;
+    return f32(m.x) * (1.0 / f32(0xffffffffu));
 }
 
 fn _hash2d(p: vec2f) -> vec2f {

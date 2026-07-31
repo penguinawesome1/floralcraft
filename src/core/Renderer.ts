@@ -21,6 +21,7 @@ import {
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
 
+const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * 8;
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 200;
 
@@ -35,7 +36,7 @@ export class Renderer {
   private camera!: Camera;
   private config!: Config;
   private clock: Clock;
-  private maxTraceDist = 500;
+  private maxTraceDist = CAPPED_MAX_TRACE_DIST;
 
   private resources!: Resources;
   private bindGroupLayouts!: BindGroupLayouts;
@@ -127,7 +128,7 @@ export class Renderer {
     }
     if (inputState.keys.has("BracketRight")) {
       this.maxTraceDist *= 1.05;
-      this.maxTraceDist = Math.min((GEN_SIDE / 2 - 1) * 8, this.maxTraceDist);
+      this.maxTraceDist = Math.min(CAPPED_MAX_TRACE_DIST, this.maxTraceDist);
     }
 
     const deltaTime = this.clock.update();

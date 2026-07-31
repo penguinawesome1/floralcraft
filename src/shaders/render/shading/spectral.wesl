@@ -6,9 +6,9 @@ const _LAMBDA_MAX: f32 = 720.0;
 const _LAMBDA_RANGE: f32 = _LAMBDA_MAX - _LAMBDA_MIN;
 
 const _XYZ_TO_LINEAR_SRGB: mat3x3f = mat3x3f(
-    vec3f(3.2406, -0.9689, 0.0557),
-    vec3f(-1.5372, 1.8758, -0.2040),
-    vec3f(-0.4986, 0.0415, 1.0570)
+    vec3f(3.2404542, -0.9692660, 0.0556434),
+    vec3f(-1.5371385, 1.8760108, -0.2040259),
+    vec3f(-0.4985314, 0.0415560, 1.0572252)
 );
 
 fn sample_hero_wavelengths(seed: vec2f) -> vec4f {
