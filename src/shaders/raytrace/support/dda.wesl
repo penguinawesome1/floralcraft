@@ -34,45 +34,27 @@ fn _step(
     t_max: vec3f,
     hit_pos: vec3f,
     snapped_pos: vec3i,
-    t_prev: f32,
     delta_t: vec3f,
     grid_step: vec3i,
     scale: u32,
     ray: Ray
 ) -> StepResult {
     let t = min(t_max.x, min(t_max.y, t_max.z));
-    let step_x = t_max.x <= t;
-    let step_y = t_max.y <= t;
-    let step_z = t_max.z <= t;
+    let step_mask = t_max <= vec3f(t);
 
     var s: StepResult;
     s.t = t;
     s.t_max = t_max;
-    s.last_hit_axis = select(select(select(NO_AXIS, Z_AXIS, step_z), Y_AXIS, step_y), X_AXIS, step_x);
+    s.last_hit_axis = select(select(select(NO_AXIS, Z_AXIS, step_mask.z), Y_AXIS, step_mask.y), X_AXIS, step_mask.x);
     s.hit_pos = ray.origin + ray.dir * t;
 
     if scale == 1u {
-        s.snapped_pos = snapped_pos;
-        if step_x {
-            s.t_max.x += delta_t.x;
-            s.snapped_pos.x += grid_step.x;
-        }
-        if step_y {
-            s.t_max.y += delta_t.y;
-            s.snapped_pos.y += grid_step.y;
-        }
-        if step_z {
-            s.t_max.z += delta_t.z;
-            s.snapped_pos.z += grid_step.z;
-        }
+        s.t_max = t_max + select(vec3f(0.0), delta_t, step_mask);
+        s.snapped_pos = snapped_pos + select(vec3i(0), grid_step, step_mask);
     } else {
         let adaptive_eps = max(EPS, t * EPS);
         s.snapped_pos = vec3i(floor(s.hit_pos + ray.dir * adaptive_eps));
-
-        let d_t = delta_t * f32(scale);
-        if step_x { s.t_max.x += d_t.x; }
-        if step_y { s.t_max.y += d_t.y; }
-        if step_z { s.t_max.z += d_t.z; }
+        s.t_max += select(vec3f(0.0), delta_t * f32(scale), step_mask);
     }
 
     return s;
@@ -132,7 +114,7 @@ fn trace(ray: Ray, max_trace_dist: f32) -> TraceResult {
             }
         }
 
-        let step_res = _step(t_max, hit_pos, snapped_pos, t, delta_t, grid_step, scale, ray);
+        let step_res = _step(t_max, hit_pos, snapped_pos, delta_t, grid_step, scale, ray);
         t_max = step_res.t_max;
         snapped_pos = step_res.snapped_pos;
         hit_pos = step_res.hit_pos;

@@ -73,11 +73,10 @@ fn _fresnel_schlick_spectral(V: vec3f, H: vec3f, F0: vec4f) -> vec4f {
 }
 
 fn _apply_fog(srgb: vec3f, initial_dir: vec3f, initial_res: TraceResult) -> vec3f {
-    let sky_color = sky::color(initial_dir);
-    if initial_res.block_id == blocks::AIR { return sky_color; }
     let fog_density = 1.8 / config.max_trace_dist;
     let n_dist = initial_res.distance * fog_density;
     let fog_factor = 1.0 - exp(-(n_dist * n_dist));
+    let sky_color = sky::color(initial_dir);
     return mix(srgb, sky_color, clamp(fog_factor, 0.0, 1.0));
 }
 
