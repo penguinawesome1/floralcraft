@@ -8,9 +8,9 @@ struct LookupResult {
     chunk_idx: u32,
 }
 
-@group(0) @binding(1) var chunk_index_map: texture_3d<u32>;
-@group(0) @binding(2) var<storage, read_write> gen_flags: array<u32>;
-@group(0) @binding(3) var<storage, read> skip_mip: array<u32>;
+@group(0) @binding(3) var chunk_index_map: texture_3d<u32>;
+@group(0) @binding(4) var<storage, read_write> gen_flags: array<u32>;
+@group(0) @binding(5) var<storage, read> skip_mip: array<u32>;
 
 fn _flag(wrapped: vec3u) {
     let addr = flags::addr(wrapped, GEN_SIDE);

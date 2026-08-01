@@ -1,4 +1,4 @@
-import package::render::bindings::config;
+import package::render::render::config;
 import package::core::blocks;
 import package::render::traversal::dda::{TraceResult, Ray};
 import package::render::traversal::dda;

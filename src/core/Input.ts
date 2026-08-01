@@ -2,7 +2,7 @@ export interface InputState {
   readonly keys: ReadonlySet<string>;
   readonly deltaX: number;
   readonly deltaY: number;
-  readonly pendingAction: 0 | 1 | 2;
+  readonly pendingAction: number;
 }
 
 export class InputManager {
@@ -10,7 +10,7 @@ export class InputManager {
   private keys = new Set<string>();
   private deltaX = 0;
   private deltaY = 0;
-  private pendingAction: 0 | 1 | 2 = 0;
+  private pendingAction = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;

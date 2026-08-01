@@ -4,9 +4,11 @@ import {
   MAX_CHUNK_BATCH_SIZE,
   MAX_CHUNKS_LOADED,
   MIP_CAPACITY,
+  PLAYER_SPAWN,
 } from "../core/Config";
 
 export type Resources = {
+  player: GPUBuffer;
   unload_params: GPUBuffer;
   gen_flags: GPUBuffer;
   load_list: GPUBuffer;
@@ -37,6 +39,16 @@ function createFreeList(device: GPUDevice): GPUBuffer {
 }
 
 export function createResources(device: GPUDevice): Resources {
+  const player = device.createBuffer({
+    label: "player buffer",
+    size: 32,
+    usage: GPUBufferUsage.STORAGE,
+    mappedAtCreation: true,
+  });
+  const data = new Float32Array(player.getMappedRange());
+  data.set(PLAYER_SPAWN, 0);
+  player.unmap();
+
   const unload_params = device.createBuffer({
     label: "unload_params buffer",
     size: 32,
@@ -94,6 +106,7 @@ export function createResources(device: GPUDevice): Resources {
   });
 
   return {
+    player,
     unload_params,
     gen_flags,
     load_list,

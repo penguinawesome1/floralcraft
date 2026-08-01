@@ -8,7 +8,7 @@ struct _ChunkAddr {
     bit_idx: u32,
 }
 
-@group(0) @binding(0) var<storage, read> chunk_pool: array<u32>;
+@group(0) @binding(2) var<storage, read> chunk_pool: array<u32>;
 
 fn _chunk_addr(local_pos: vec3u) -> _ChunkAddr {
     let linear_idx = local_pos.z * (CHUNK_SIDE * CHUNK_SIDE) + local_pos.x * CHUNK_SIDE + local_pos.y;

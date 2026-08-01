@@ -1,3 +1,5 @@
+import { mat4, vec3 } from "gl-matrix";
+
 const GEN_SIDE_SHIFT = 8;
 const CHUNK_SIDE_SHIFT = 3;
 export const GEN_SIDE = 1 << GEN_SIDE_SHIFT;
@@ -8,6 +10,7 @@ export const MAX_CHUNK_BATCH_SIZE = 16384;
 export const MAX_CHUNKS_LOADED = 256_000;
 export const MIP_CAPACITY = Math.ceil(Math.ceil(GEN_SIDE / 2) ** 3 / 32);
 export const CHUNK_LEN = Math.ceil((CHUNK_SIDE ** 3 * BITS_PER_ID) / 32);
+export const PLAYER_SPAWN = vec3.fromValues(0, 700, 0);
 
 export const SHADER_CONFIG = {
   GEN_SIDE,
@@ -19,23 +22,47 @@ export const SHADER_CONFIG = {
 export type Config = {
   buffer: GPUBuffer;
   uniformData: ArrayBuffer;
-  update: (queue: GPUQueue, values: Partial<ConfigValues>) => void;
+  update: (queue: GPUQueue, values: ConfigValues) => void;
 };
 
 type ConfigValues = {
+  camRotation: mat4;
+  camYaw: number;
   maxTraceDist: number;
   timeOfDay: number;
-  pendingAction: 0 | 1 | 2; // none | break | place
+  deltaTime: number;
+  pendingAction: number;
 };
 
+export function packPendingAction(
+  action: number,
+  keys: ReadonlySet<string>,
+): number {
+  let packed = action; // bits 0-1
+  if (keys.has("KeyW") || keys.has("ArrowUp")) packed |= 1 << 2;
+  if (keys.has("KeyS") || keys.has("ArrowDown")) packed |= 1 << 3;
+  if (keys.has("KeyA") || keys.has("ArrowLeft")) packed |= 1 << 4;
+  if (keys.has("KeyD") || keys.has("ArrowRight")) packed |= 1 << 5;
+  if (keys.has("Space")) packed |= 1 << 6;
+  if (keys.has("ShiftLeft")) packed |= 1 << 7;
+  return packed;
+}
+
 export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
-  const uniformData = new ArrayBuffer(12);
+  const uniformData = new ArrayBuffer(96);
   const floatView = new Float32Array(uniformData);
   const uintView = new Uint32Array(uniformData);
 
-  floatView[0] = initial.maxTraceDist;
-  floatView[1] = initial.timeOfDay;
-  uintView[2] = initial.pendingAction;
+  function writeValues(values: ConfigValues) {
+    floatView.set(values.camRotation, 0);
+    floatView[16] = values.camYaw;
+    floatView[17] = values.maxTraceDist;
+    floatView[18] = values.timeOfDay;
+    floatView[19] = values.deltaTime;
+    uintView[20] = values.pendingAction;
+  }
+
+  writeValues(initial);
 
   const buffer = device.createBuffer({
     label: "config buffer",
@@ -45,25 +72,9 @@ export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
 
   device.queue.writeBuffer(buffer, 0, uniformData);
 
-  function update(queue: GPUQueue, values: Partial<ConfigValues>) {
-    let dirty = false;
-
-    if (values.maxTraceDist !== undefined) {
-      floatView[0] = values.maxTraceDist;
-      dirty = true;
-    }
-    if (values.timeOfDay !== undefined) {
-      floatView[1] = values.timeOfDay;
-      dirty = true;
-    }
-    if (values.pendingAction !== undefined) {
-      uintView[2] = values.pendingAction;
-      dirty = true;
-    }
-
-    if (dirty) {
-      queue.writeBuffer(buffer, 0, uniformData);
-    }
+  function update(queue: GPUQueue, values: ConfigValues) {
+    writeValues(values);
+    queue.writeBuffer(buffer, 0, uniformData);
   }
 
   return { buffer, uniformData, update };

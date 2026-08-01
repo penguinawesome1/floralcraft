@@ -2,6 +2,7 @@ import { link, makeWeslDevice, type LinkParams } from "wesl";
 import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
 
+import movementWesl from "../shaders/movement.wesl?link";
 import freeWesl from "../shaders/gen/free.wesl?link";
 import clearWesl from "../shaders/gen/clear.wesl?link";
 import compactWesl from "../shaders/gen/compact.wesl?link";
@@ -14,6 +15,7 @@ import storeWesl from "../shaders/modify/store.wesl?link";
 import presentWesl from "../shaders/present.wesl?link";
 
 export type Pipelines = {
+  movement: GPUComputePipeline;
   free: GPUComputePipeline;
   clear: GPUComputePipeline;
   compact: GPUComputePipeline;
@@ -45,6 +47,21 @@ async function validateShader(module: GPUShaderModule) {
       console.error(`WGSL error line ${e.lineNum}: ${e.message}`);
     throw new Error("Shader compilation failed");
   }
+}
+
+function createMovementPipeline(
+  device: GPUDevice,
+  bgLayout: GPUBindGroupLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "movement pipeline",
+    layout: device.createPipelineLayout({
+      label: "movement pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
+    compute: { module, entryPoint: "move_player" },
+  });
 }
 
 function createFreePipeline(
@@ -217,6 +234,11 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
+  const movementModule = await loadShaderModule(
+    weslDevice,
+    movementWesl,
+    "movement shader module",
+  );
   const freeModule = await loadShaderModule(
     weslDevice,
     freeWesl,
@@ -269,6 +291,11 @@ export async function createPipelines(
   );
 
   return {
+    movement: createMovementPipeline(
+      device,
+      bgLayouts.movement,
+      movementModule,
+    ),
     free: createFreePipeline(device, bgLayouts.free, freeModule),
     clear: createClearPipeline(device, bgLayouts.clear, clearModule),
     compact: createCompactPipeline(device, bgLayouts.compact, compactModule),

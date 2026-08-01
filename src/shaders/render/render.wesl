@@ -1,13 +1,14 @@
-import package::config::IS_DEBUG_MODE;
-import package::core::{blocks, pos, camera::Camera, block_target::BlockTarget};
-import package::render::bindings::config;
+import package::config::{Config, IS_DEBUG_MODE};
+import package::core::{blocks, pos, player::Player, block_target::BlockTarget};
+import package::render::render::config;
 import package::render::traversal::dda::{X_AXIS, Y_AXIS, NO_AXIS};
 import package::render::traversal::{dda, dda::Ray};
 import package::render::shading::{sky, path_tracer};
 
-@group(0) @binding(4) var<storage, read_write> block_target: BlockTarget;
+@group(0) @binding(0) var<uniform> config: Config;
+@group(0) @binding(1) var<storage, read> player: Player;
+@group(0) @binding(6) var<storage, read_write> block_target: BlockTarget;
 @group(1) @binding(0) var t_output: texture_storage_2d<rgba8unorm, write>;
-@group(1) @binding(1) var<uniform> cam: Camera;
 
 // Converts pixel coordinates to a normalized world-space ray direction.
 // Used as the primary vector for grid traversal.
@@ -33,13 +34,13 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
     let canvas_size = textureDimensions(t_output);
     if any(px.xy >= canvas_size) { return; }
 
-    let dir = _px_to_dir(px.xy, canvas_size, cam.rotation);
-    let ray = Ray(cam.pos, dir);
+    let dir = _px_to_dir(px.xy, canvas_size, config.cam_rotation);
+    let ray = Ray(player.pos, dir);
     let res = dda::trace(ray, config.max_trace_dist);
 
     let crosshair_px = canvas_size / 2u;
     if all(px.xy == crosshair_px) {
-        let is_valid_target = config.pending_action != 0u
+        let is_valid_target = (config.pending_action & 0x3) != 0u
             && res.block_id != blocks::AIR;
 
         block_target.is_block_hit = u32(is_valid_target);
@@ -48,7 +49,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
             block_target.pos = select(
                 res.snapped_pos + axis_offset,
                 res.snapped_pos,
-                config.pending_action == 1u
+                (config.pending_action & 0x3) == 1u
             );
         }
     }

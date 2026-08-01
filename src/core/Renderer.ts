@@ -1,6 +1,6 @@
 import { Camera } from "./Camera";
 import { type InputState } from "./Input.ts";
-import { vec3 } from "gl-matrix";
+// import { vec3 } from "gl-matrix";
 import {
   type BindGroupLayouts,
   createBindGroupLayouts,
@@ -17,7 +17,8 @@ import {
   createConfig,
   GEN_SIDE,
   DAY_LENGTH_SECONDS,
-  CHUNK_SIDE,
+  // CHUNK_SIDE,
+  packPendingAction,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
 
@@ -27,15 +28,15 @@ const RESIZE_DEBOUNCE_MS = 200;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
+  private readonly clock = new Clock();
+  private readonly camera = new Camera(0.002);
   private resizeDebounce: ReturnType<typeof setTimeout> | undefined;
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
   private format!: GPUTextureFormat;
   private canvasSampler!: GPUSampler;
   private renderTarget!: GPUTexture;
-  private camera!: Camera;
   private config!: Config;
-  private clock: Clock;
   private maxTraceDist = CAPPED_MAX_TRACE_DIST;
 
   private resources!: Resources;
@@ -53,7 +54,6 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    this.clock = new Clock();
   }
 
   async init(): Promise<void> {
@@ -78,15 +78,12 @@ export class Renderer {
       minFilter: "nearest",
       mipmapFilter: "nearest",
     });
-    this.camera = new Camera(
-      this.device,
-      0.002,
-      20.0,
-      vec3.fromValues(1000, 400, 1000),
-    );
     this.config = createConfig(this.device, {
+      camRotation: this.camera.rotation,
+      camYaw: this.camera.yaw,
       maxTraceDist: this.maxTraceDist,
       timeOfDay: 0.5,
+      deltaTime: 0.0,
       pendingAction: 0,
     });
 
@@ -97,7 +94,6 @@ export class Renderer {
       this.bindGroupLayouts,
       this.resources,
       this.config,
-      this.camera,
     );
     this.bindGroups = { ...staticBindGroups } as BindGroups;
     this.pipelines = await createPipelines(
@@ -131,14 +127,22 @@ export class Renderer {
       this.maxTraceDist = Math.min(CAPPED_MAX_TRACE_DIST, this.maxTraceDist);
     }
 
+    this.camera.update(inputState.deltaX, inputState.deltaY);
+
     const deltaTime = this.clock.update();
     let timeOfDay = (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
+
     this.config.update(this.device.queue, {
+      camRotation: this.camera.rotation,
+      camYaw: this.camera.yaw,
       timeOfDay,
       maxTraceDist: this.maxTraceDist,
-      pendingAction: inputState.pendingAction,
+      deltaTime,
+      pendingAction: packPendingAction(
+        inputState.pendingAction,
+        inputState.keys,
+      ),
     });
-    this.camera.update(this.device.queue, deltaTime, inputState);
   }
 
   frame(): void {
@@ -151,6 +155,7 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
+    this.encodeMovementPass(commandEncoder);
     this.encodeFreeClearCompactIndirectPass(commandEncoder, qSet);
     this.encodeGenPass(commandEncoder, qSet);
     this.encodeMipPass(commandEncoder, qSet);
@@ -236,6 +241,14 @@ export class Renderer {
      `);
   }
 
+  private encodeMovementPass(commandEncoder: GPUCommandEncoder): void {
+    const pass = commandEncoder.beginComputePass({ label: "movement pass" });
+    pass.setPipeline(this.pipelines.movement);
+    pass.setBindGroup(0, this.bindGroups.movement);
+    pass.dispatchWorkgroups(1, 1, 1);
+    pass.end();
+  }
+
   private encodeFreeClearCompactIndirectPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
@@ -252,59 +265,59 @@ export class Renderer {
           : undefined,
     });
 
-    const chunkPos = (pos: vec3): vec3 =>
-      vec3.fromValues(
-        Math.floor(pos[0] / CHUNK_SIDE),
-        Math.floor(pos[1] / CHUNK_SIDE),
-        Math.floor(pos[2] / CHUNK_SIDE),
-      );
+    // const chunkPos = (pos: vec3): vec3 =>
+    //   vec3.fromValues(
+    //     Math.floor(pos[0] / CHUNK_SIDE),
+    //     Math.floor(pos[1] / CHUNK_SIDE),
+    //     Math.floor(pos[2] / CHUNK_SIDE),
+    //   );
 
-    const prevChunk = chunkPos(this.camera.prevPos);
-    const currChunk = chunkPos(this.camera.pos);
+    // const prevChunk = chunkPos(this.camera.prevPos);
+    // const currChunk = chunkPos(this.camera.pos);
 
-    const d = vec3.create();
-    vec3.sub(d, currChunk, prevChunk);
+    // const d = vec3.create();
+    // vec3.sub(d, currChunk, prevChunk);
 
-    const half = GEN_SIDE / 2;
-    const origin = new Int32Array(3);
-    const depths = new Int32Array(3);
-    let anyAxisNeedsUnload = false;
+    // const half = GEN_SIDE / 2;
+    // const origin = new Int32Array(3);
+    // const depths = new Int32Array(3);
+    // let anyAxisNeedsUnload = false;
 
-    for (let axis = 0; axis < 3; axis++) {
-      const delta = d[axis];
-      if (delta === 0) continue;
+    // for (let axis = 0; axis < 3; axis++) {
+    //   const delta = d[axis];
+    //   if (delta === 0) continue;
 
-      if (delta > 0) {
-        origin[axis] = prevChunk[axis] - half;
-        depths[axis] = delta;
-      } else {
-        origin[axis] = currChunk[axis] + half;
-        depths[axis] = -delta;
-      }
+    //   if (delta > 0) {
+    //     origin[axis] = prevChunk[axis] - half;
+    //     depths[axis] = delta;
+    //   } else {
+    //     origin[axis] = currChunk[axis] + half;
+    //     depths[axis] = -delta;
+    //   }
 
-      anyAxisNeedsUnload = true;
-    }
+    //   anyAxisNeedsUnload = true;
+    // }
 
-    if (anyAxisNeedsUnload) {
-      const uniformData = new Int32Array(8);
-      uniformData.set(origin, 0);
-      uniformData.set(depths, 4);
-      this.device.queue.writeBuffer(
-        this.resources.unload_params,
-        0,
-        uniformData,
-      );
+    // if (anyAxisNeedsUnload) {
+    //   const uniformData = new Int32Array(8);
+    //   uniformData.set(origin, 0);
+    //   uniformData.set(depths, 4);
+    //   this.device.queue.writeBuffer(
+    //     this.resources.unload_params,
+    //     0,
+    //     uniformData,
+    //   );
 
-      const groups = Math.ceil(GEN_SIDE / 16);
+    //   const groups = Math.ceil(GEN_SIDE / 16);
 
-      pass.setPipeline(this.pipelines.free);
-      pass.setBindGroup(0, this.bindGroups.free);
-      pass.dispatchWorkgroups(groups, groups, 1);
+    //   pass.setPipeline(this.pipelines.free);
+    //   pass.setBindGroup(0, this.bindGroups.free);
+    //   pass.dispatchWorkgroups(groups, groups, 1);
 
-      pass.setPipeline(this.pipelines.clear);
-      pass.setBindGroup(0, this.bindGroups.clear);
-      pass.dispatchWorkgroups(groups, groups, 1);
-    }
+    //   pass.setPipeline(this.pipelines.clear);
+    //   pass.setBindGroup(0, this.bindGroups.clear);
+    //   pass.dispatchWorkgroups(groups, groups, 1);
+    // }
 
     pass.setPipeline(this.pipelines.compact);
     pass.setBindGroup(0, this.bindGroups.compact);
@@ -468,11 +481,7 @@ export class Renderer {
     const renderDynamic = this.device.createBindGroup({
       label: "render dynamic bind group",
       layout: this.bindGroupLayouts.renderDynamic,
-      entries: [
-        { binding: 0, resource: renderTargetView },
-        { binding: 1, resource: { buffer: this.camera.buffer } },
-        { binding: 2, resource: { buffer: this.config.buffer } },
-      ],
+      entries: [{ binding: 0, resource: renderTargetView }],
     });
 
     const present = this.device.createBindGroup({

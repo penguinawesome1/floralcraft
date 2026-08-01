@@ -1,13 +1,13 @@
-import type { Camera } from "../core/Camera";
 import type { Config } from "../core/Config";
 import type { BindGroupLayouts } from "./BindGroupLayouts";
 import type { Resources } from "./Resources";
 
 export type StaticBindGroups = {
-  compact: GPUBindGroup;
+  movement: GPUBindGroup;
+  free: GPUBindGroup;
   clear: GPUBindGroup;
   indirect: GPUBindGroup;
-  free: GPUBindGroup;
+  compact: GPUBindGroup;
   gen: GPUBindGroup;
   mip: GPUBindGroup;
   modify: GPUBindGroup;
@@ -21,6 +21,24 @@ export type DynamicBindGroups = {
 };
 
 export type BindGroups = StaticBindGroups & DynamicBindGroups;
+
+function createMovementGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+  config: Config,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "movement bind group",
+    layout: layouts.movement,
+    entries: [
+      { binding: 0, resource: { buffer: config.buffer } },
+      { binding: 1, resource: { buffer: resources.player } },
+      { binding: 2, resource: { buffer: resources.chunk_pool } },
+      { binding: 3, resource: resources.chunk_index_map.createView() },
+    ],
+  });
+}
 
 function createFreeGroup(
   device: GPUDevice,
@@ -88,14 +106,13 @@ function createGenGroup(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
-  camera: Camera,
 ): GPUBindGroup {
   return device.createBindGroup({
     label: "gen bind group",
     layout: layouts.gen,
     entries: [
       { binding: 0, resource: { buffer: resources.load_list } },
-      { binding: 1, resource: { buffer: camera.buffer } },
+      { binding: 1, resource: { buffer: resources.player } },
       { binding: 2, resource: { buffer: resources.free_list } },
       { binding: 3, resource: resources.chunk_index_map.createView() },
       { binding: 4, resource: { buffer: resources.chunk_pool } },
@@ -123,16 +140,19 @@ function createRenderStaticGroup(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
+  config: Config,
 ): GPUBindGroup {
   return device.createBindGroup({
     label: "render static bind group",
     layout: layouts.renderStatic,
     entries: [
-      { binding: 0, resource: { buffer: resources.chunk_pool } },
-      { binding: 1, resource: resources.chunk_index_map.createView() },
-      { binding: 2, resource: { buffer: resources.gen_flags } },
-      { binding: 3, resource: { buffer: resources.skip_mip } },
-      { binding: 4, resource: { buffer: resources.block_target } },
+      { binding: 0, resource: { buffer: config.buffer } },
+      { binding: 1, resource: { buffer: resources.player } },
+      { binding: 2, resource: { buffer: resources.chunk_pool } },
+      { binding: 3, resource: resources.chunk_index_map.createView() },
+      { binding: 4, resource: { buffer: resources.gen_flags } },
+      { binding: 5, resource: { buffer: resources.skip_mip } },
+      { binding: 6, resource: { buffer: resources.block_target } },
     ],
   });
 }
@@ -178,16 +198,16 @@ export function createStaticBindGroups(
   layouts: BindGroupLayouts,
   resources: Resources,
   config: Config,
-  camera: Camera,
 ): StaticBindGroups {
   return {
+    movement: createMovementGroup(device, layouts, resources, config),
     free: createFreeGroup(device, layouts, resources),
     clear: createClearGroup(device, layouts, resources),
     compact: createCompactGroup(device, layouts, resources),
     indirect: createIndirectGroup(device, layouts, resources),
-    gen: createGenGroup(device, layouts, resources, camera),
+    gen: createGenGroup(device, layouts, resources),
     mip: createMipGroup(device, layouts, resources),
-    renderStatic: createRenderStaticGroup(device, layouts, resources),
+    renderStatic: createRenderStaticGroup(device, layouts, resources, config),
     modify: createModifyGroup(device, layouts, resources, config),
     store: createStoreGroup(device, layouts, resources),
   };
