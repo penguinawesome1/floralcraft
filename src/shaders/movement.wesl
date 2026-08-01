@@ -21,6 +21,10 @@ const _DRAG_PER_TICK = 0.98;
 const _TICKS_PER_SECOND = 20.0;
 const _JUMP_IMPULSE = 0.46 * _TICKS_PER_SECOND;
 
+const IS_GROUNDED_MASK = 1u;
+const IS_FLYING_MASK = 2u;
+const WAS_SPACE_HELD_MASK = 4u;
+
 @group(0) @binding(0) var<uniform> config: Config;
 @group(0) @binding(1) var<storage, read_write> player: Player;
 @group(0) @binding(3) var chunk_index_map: texture_3d<u32>;
@@ -80,9 +84,9 @@ fn _snap_to_surface(open_y: f32, blocked_y: f32, center: vec3f) -> f32 {
     return lo;
 }
 
-fn _resolve_collision(pos: vec3f, delta: vec3f) -> vec3f {
-    player.is_grounded = 0u;
+fn _resolve_collision(pos: vec3f, delta: vec3f, is_grounded: ptr<function, bool>) -> vec3f {
     var res = pos;
+    *is_grounded = false;
 
     if !_is_solid_player_box(res + vec3f(delta.x, 0.0, 0.0)) { res.x += delta.x; }
     if !_is_solid_player_box(res + vec3f(0.0, 0.0, delta.z)) { res.z += delta.z; }
@@ -91,7 +95,7 @@ fn _resolve_collision(pos: vec3f, delta: vec3f) -> vec3f {
     if _is_solid_player_box(next_y) {
         res.y = _snap_to_surface(res.y, next_y.y, res);
         player.velocity.y = 0.0;
-        player.is_grounded = select(0u, 1u, delta.y <= 0.0);
+        *is_grounded = delta.y <= 0.0;
     } else {
         res.y += delta.y;
     }
@@ -113,31 +117,30 @@ fn move_player() {
     let space_held = _is_pressed(_SPACE_SHIFT);
     let shift_held = _is_pressed(_LEFT_SHIFT_SHIFT);
 
-    var is_flying = player.is_flying & 1u;
-    let was_space_held = (player.is_flying >> 1u) & 1u;
-    var timer_ms = player.is_flying >> 2u;
+    var is_grounded = (player.state_flags & IS_GROUNDED_MASK) != 0u;
+    var is_flying = (player.state_flags & IS_FLYING_MASK) != 0u;
+    let was_space_held = (player.state_flags & WAS_SPACE_HELD_MASK) != 0u;
+    var timer_ms = player.fly_timer_ms;
 
-    if player.is_grounded == 1u { is_flying = 0u; }
+    if is_grounded { is_flying = false; }
 
     let dt_ms = u32(max(0.0, config.delta_time * 1000.0));
     timer_ms = select(0u, timer_ms - dt_ms, timer_ms > dt_ms);
 
-    let space_just_pressed = space_held && (was_space_held == 0u);
+    let space_just_pressed = space_held && !was_space_held;
 
     if space_just_pressed && timer_ms > 0u {
-        is_flying = 1u - is_flying;
-        if is_flying == 1u { player.velocity = vec3f(0.0); }
+        is_flying = !is_flying;
+        if is_flying { player.velocity = vec3f(0.0); }
         timer_ms = 0u;
     } else if space_just_pressed {
         timer_ms = 300u;
     }
 
-    if space_held && is_flying == 0u && player.is_grounded == 1u {
+    if space_held && !is_flying && is_grounded {
         player.velocity.y = _JUMP_IMPULSE;
-        player.is_grounded = 0u;
+        is_grounded = false;
     }
-
-    player.is_flying = is_flying | (u32(space_held) << 1u) | (timer_ms << 2u);
 
     let forward = vec3f(sin(config.cam_yaw), 0.0, cos(config.cam_yaw));
     let right = vec3f(cos(config.cam_yaw), 0.0, -sin(config.cam_yaw));
@@ -145,13 +148,13 @@ fn move_player() {
     var move_dir = forward * forward_input + right * right_input;
     if length(move_dir) > 0.0 { move_dir = normalize(move_dir); }
 
-    if is_flying == 1u {
+    if is_flying {
         let vert = select(0.0, 1.0, space_held) - select(0.0, 1.0, shift_held);
         var fly_dir = move_dir + vec3f(0.0, vert, 0.0);
         if length(fly_dir) > 0.0 { fly_dir = normalize(fly_dir); }
 
         let delta = fly_dir * _FLY_SPEED * config.delta_time;
-        player.pos = _resolve_collision(player.pos, delta);
+        player.pos = _resolve_collision(player.pos, delta, &is_grounded);
         player.velocity = vec3f(0.0);
     } else {
         player.velocity.y = _apply_gravity(player.velocity.y, config.delta_time);
@@ -160,6 +163,11 @@ fn move_player() {
         let vel = move_dir * speed;
         let delta = vec3f(vel.x, player.velocity.y, vel.z) * config.delta_time;
 
-        player.pos = _resolve_collision(player.pos, delta);
+        player.pos = _resolve_collision(player.pos, delta, &is_grounded);
     }
+
+    player.fly_timer_ms = timer_ms;
+    player.state_flags = select(0u, IS_GROUNDED_MASK, is_grounded)
+                       | select(0u, IS_FLYING_MASK, is_flying)
+                       | select(0u, WAS_SPACE_HELD_MASK, space_held);
 }
