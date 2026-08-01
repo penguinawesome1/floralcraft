@@ -63,6 +63,6 @@ fn modify_target_block() {
     if config.pending_action == 1u {
         chunk_pool[chunk_base_idx + addr.word_idx] &= ~(BLOCK_MASK << addr.bit_idx);
     } else {
-        chunk_pool[chunk_base_idx + addr.word_idx] |= (BLOCK_MASK << addr.bit_idx);
+        chunk_pool[chunk_base_idx + addr.word_idx] |= (blocks::MIRROR << addr.bit_idx);
     }
 }

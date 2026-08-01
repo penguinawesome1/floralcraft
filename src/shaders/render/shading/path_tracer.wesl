@@ -29,6 +29,12 @@ fn _block_material(id: u32) -> BlockMaterial {
         case blocks::BEDROCK: {
             return BlockMaterial(vec3f(0.4, -0.1, -1.7), 0.95, 0.0, 0.04, 0.0);
         }
+        case blocks::SAND: {
+            return BlockMaterial(vec3f(3.5, 0.6, -0.3), 0.85, 0.0, 0.04, 0.0);
+        }
+        case blocks::MIRROR: {
+            return BlockMaterial(vec3f(1.0, 0.0, 0.0), 0.0, 1.0, 1.0, 0.0);
+        }
         default: {
             return BlockMaterial(vec3f(1.0, 1.0, 1.0), 0.0, 0.0, 0.04, 15.0);
         }
@@ -95,21 +101,25 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         let specular = (vec4f(D * G) * F) / max(4.0 * NdotV * NdotL, 0.001);
         let kD = (vec4f(1.0) - F) * (1.0 - material.metallic);
         let diffuse = kD * spectral_albedo / PI;
-
-        let direct_light = (diffuse + specular) * NdotL * visibility;
-        radiance += direct_light * throughput;
+        let is_specular = material.metallic > 0.9 && material.roughness < 0.05;
 
         let bounce_seed = pixel_seed + vec2f(f32(bounce) * 17.13, f32(bounce) * 31.41);
         let next_dir = pbr::sample_rough_bounce(curr_dir, N, material.roughness, bounce_seed);
-        let next_ray = Ray(shadow_origin, next_dir);
-
         let NdotNext = max(dot(N, next_dir), 0.0);
-        throughput *= spectral_albedo * NdotNext;
+
+        if is_specular {
+            let F_mirror = pbr::fresnel_schlick_spectral(V, N, F0);
+            throughput *= F_mirror * NdotNext;
+        } else {
+            let direct_light = (diffuse + specular) * NdotL * visibility;
+            radiance += direct_light * throughput;
+            throughput *= spectral_albedo * NdotNext;
+        }
 
         curr_dir = next_dir;
-        curr_res = dda::trace(next_ray, 32.0);
+        curr_res = dda::trace(Ray(shadow_origin, next_dir), 32.0);
 
-        if curr_res.block_id == 0u {
+        if curr_res.block_id == blocks::AIR {
             let sky_color = sky::color(curr_dir);
             let sky_spectral = spectral::rgb_to_spectrum(sky_color, wavelengths);
             radiance += sky_spectral * throughput;
