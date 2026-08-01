@@ -1,7 +1,6 @@
-import constants::CHUNK_SIDE;
 import package::config::Config;
-import package::core::{pos, blocks, player::Player, flags::ALL_AIR};
-import package::render::traversal::read_pool;
+import package::core::player::Player;
+import package::core::collision;
 
 const _ARROW_UP_SHIFT = 2u;
 const _ARROW_DOWN_SHIFT = 3u;
@@ -13,13 +12,10 @@ const _LEFT_SHIFT_SHIFT = 7u;
 const _WALK_SPEED = 4.317;
 const _SPRINT_SPEED = 7.5; 
 const _FLY_SPEED = 25.0;
-const _PLAYER_RADIUS = 0.3;
-const _PLAYER_HEIGHT = 1.8;
-const _PLAYER_EYE_OFFSET = 1.6;
 const _GRAVITY_PER_TICK = -0.08;
 const _DRAG_PER_TICK = 0.98;
 const _TICKS_PER_SECOND = 20.0;
-const _JUMP_IMPULSE = 0.46 * _TICKS_PER_SECOND;
+const _JUMP_IMPULSE = 0.49 * _TICKS_PER_SECOND;
 
 const IS_GROUNDED_MASK = 1u;
 const IS_FLYING_MASK = 2u;
@@ -35,72 +31,6 @@ fn _is_pressed(shift: u32) -> bool {
 
 fn _axis(neg_shift: u32, pos_shift: u32) -> f32 {
     return select(0.0, 1.0, _is_pressed(pos_shift)) - select(0.0, 1.0, _is_pressed(neg_shift));
-}
-
-fn _is_solid(world_pos: vec3f) -> bool {
-    let voxel_pos = vec3i(floor(world_pos));
-    let chunk_pos = vec3i(floor(vec3f(voxel_pos) / f32(CHUNK_SIDE)));
-
-    let value = textureLoad(chunk_index_map, pos::wrapped_chunk(chunk_pos), 0u).x;
-    if value == 0u { return true; }
-    if value == ALL_AIR { return false; }
-
-    let bid = read_pool::block_id(value, pos::local(voxel_pos));
-    return bid != blocks::AIR;
-}
-
-fn _is_solid_at_height(center: vec3f, y_offset: f32) -> bool {
-    let p = vec3f(center.x, center.y + y_offset, center.z);
-    let r = _PLAYER_RADIUS;
-
-    return _is_solid(p) ||
-           _is_solid(p + vec3f(r, 0.0, 0.0)) || _is_solid(p + vec3f(-r, 0.0, 0.0)) ||
-           _is_solid(p + vec3f(0.0, 0.0, r)) || _is_solid(p + vec3f(0.0, 0.0, -r)) ||
-           _is_solid(p + vec3f(r, 0.0, r)) || _is_solid(p + vec3f(r, 0.0, -r)) ||
-           _is_solid(p + vec3f(-r, 0.0, r)) || _is_solid(p + vec3f(-r, 0.0, -r));
-}
-
-fn _is_solid_player_box(center: vec3f) -> bool {
-    let feet_y = -_PLAYER_EYE_OFFSET;
-    let mid_y = feet_y + (_PLAYER_HEIGHT * 0.5);
-    let head_y = _PLAYER_HEIGHT - _PLAYER_EYE_OFFSET;
-
-    return _is_solid_at_height(center, feet_y) || 
-           _is_solid_at_height(center, mid_y) || 
-           _is_solid_at_height(center, head_y);
-}
-
-fn _snap_to_surface(open_y: f32, blocked_y: f32, center: vec3f) -> f32 {
-    var lo = open_y;
-    var hi = blocked_y;
-    for (var i = 0u; i < 8u; i++) {
-        let mid = (lo + hi) * 0.5;
-        if _is_solid_player_box(vec3f(center.x, mid, center.z)) {
-            hi = mid;
-        } else {
-            lo = mid;
-        }
-    }
-    return lo;
-}
-
-fn _resolve_collision(pos: vec3f, delta: vec3f, is_grounded: ptr<function, bool>) -> vec3f {
-    var res = pos;
-    *is_grounded = false;
-
-    if !_is_solid_player_box(res + vec3f(delta.x, 0.0, 0.0)) { res.x += delta.x; }
-    if !_is_solid_player_box(res + vec3f(0.0, 0.0, delta.z)) { res.z += delta.z; }
-
-    let next_y = res + vec3f(0.0, delta.y, 0.0);
-    if _is_solid_player_box(next_y) {
-        res.y = _snap_to_surface(res.y, next_y.y, res);
-        player.velocity.y = 0.0;
-        *is_grounded = delta.y <= 0.0;
-    } else {
-        res.y += delta.y;
-    }
-
-    return res;
 }
 
 fn _apply_gravity(velocity_y: f32, dt: f32) -> f32 {
@@ -154,8 +84,11 @@ fn move_player() {
         if length(fly_dir) > 0.0 { fly_dir = normalize(fly_dir); }
 
         let delta = fly_dir * _FLY_SPEED * config.delta_time;
-        player.pos = _resolve_collision(player.pos, delta, &is_grounded);
+        let res = collision::resolve_collision(player.pos, delta, 0.0, chunk_index_map);
+
+        player.pos = res.pos;
         player.velocity = vec3f(0.0);
+        is_grounded = res.is_grounded;
     } else {
         player.velocity.y = _apply_gravity(player.velocity.y, config.delta_time);
 
@@ -163,7 +96,11 @@ fn move_player() {
         let vel = move_dir * speed;
         let delta = vec3f(vel.x, player.velocity.y, vel.z) * config.delta_time;
 
-        player.pos = _resolve_collision(player.pos, delta, &is_grounded);
+        let res = collision::resolve_collision(player.pos, delta, player.velocity.y, chunk_index_map);
+
+        player.pos = res.pos;
+        player.velocity.y = res.vel_y;
+        is_grounded = res.is_grounded;
     }
 
     player.fly_timer_ms = timer_ms;

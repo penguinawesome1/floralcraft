@@ -1,6 +1,6 @@
 import constants::{CHUNK_SIDE, BITS_PER_ID};
 import package::config::Config;
-import package::core::{pos, flags, blocks, block_target::BlockTarget};
+import package::core::{pos, flags, blocks, collision, block_target::BlockTarget, player::Player};
 import package::gen::core::{FreeList, OUT_OF_MEMORY};
 import package::modify::core::ChunkAllocResult;
 
@@ -19,6 +19,7 @@ struct _ChunkAddr {
 @group(0) @binding(3) var<storage, read_write> chunk_pool: array<u32>;
 @group(0) @binding(4) var<storage, read_write> free_list: FreeList;
 @group(0) @binding(5) var<storage, read_write> alloc_result: ChunkAllocResult;
+@group(0) @binding(6) var<storage, read> player: Player;
 
 fn _alloc() -> u32 {
     let slot = atomicAdd(&free_list.len, 1u);
@@ -39,6 +40,8 @@ fn _chunk_addr(local_pos: vec3u) -> _ChunkAddr {
 fn modify_target_block() {
     alloc_result.is_store_needed = 0u;
     if (config.pending_action & 0x3) == 0u || block_target.is_block_hit == 0u { return; }
+    let is_placing = (config.pending_action & 0x3) == 2u;
+    if is_placing && collision::is_overlap(player.pos, block_target.pos) { return; }
 
     let chunk_pos = pos::chunk(block_target.pos);
     let wrapped = pos::wrapped_chunk(chunk_pos);
@@ -60,9 +63,9 @@ fn modify_target_block() {
     let addr = _chunk_addr(local);
     let chunk_base_idx = chunk_num * CHUNK_LEN;
 
-    if (config.pending_action & 0x3) == 1u {
-        chunk_pool[chunk_base_idx + addr.word_idx] &= ~(BLOCK_MASK << addr.bit_idx);
-    } else {
+    if is_placing {
         chunk_pool[chunk_base_idx + addr.word_idx] |= (blocks::MIRROR << addr.bit_idx);
+    } else {
+        chunk_pool[chunk_base_idx + addr.word_idx] &= ~(BLOCK_MASK << addr.bit_idx);
     }
 }

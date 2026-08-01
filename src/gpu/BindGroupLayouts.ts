@@ -313,6 +313,12 @@ function createModifyLayout(device: GPUDevice): GPUBindGroupLayout {
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "storage" },
       },
+      // player
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
     ],
   });
 }

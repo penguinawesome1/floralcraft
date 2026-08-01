@@ -173,6 +173,7 @@ function createModifyGroup(
       { binding: 3, resource: { buffer: resources.chunk_pool } },
       { binding: 4, resource: { buffer: resources.free_list } },
       { binding: 5, resource: { buffer: resources.alloc_result } },
+      { binding: 6, resource: { buffer: resources.player } },
     ],
   });
 }
