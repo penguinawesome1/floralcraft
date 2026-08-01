@@ -1,9 +1,10 @@
 export type BindGroupLayouts = {
   movement: GPUBindGroupLayout;
+  prepUnload: GPUBindGroupLayout;
   free: GPUBindGroupLayout;
   clear: GPUBindGroupLayout;
   compact: GPUBindGroupLayout;
-  indirect: GPUBindGroupLayout;
+  prepGen: GPUBindGroupLayout;
   gen: GPUBindGroupLayout;
   mip: GPUBindGroupLayout;
   renderStatic: GPUBindGroupLayout;
@@ -45,6 +46,32 @@ function createMovementLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
+function createPrepUnloadLayout(device: GPUDevice): GPUBindGroupLayout {
+  return device.createBindGroupLayout({
+    label: "prep unload bind group layout",
+    entries: [
+      // player
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "read-only-storage" },
+      },
+      // indirect_args
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+      // unload_params
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
+  });
+}
+
 function createFreeLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
     label: "free bind group layout",
@@ -53,7 +80,7 @@ function createFreeLayout(device: GPUDevice): GPUBindGroupLayout {
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "uniform" },
+        buffer: { type: "read-only-storage" },
       },
       // chunk_index_map
       {
@@ -79,7 +106,7 @@ function createClearLayout(device: GPUDevice): GPUBindGroupLayout {
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: { type: "uniform" },
+        buffer: { type: "read-only-storage" },
       },
       // chunk_index_map
       {
@@ -121,9 +148,9 @@ function createCompactLayout(device: GPUDevice): GPUBindGroupLayout {
   });
 }
 
-function createIndirectLayout(device: GPUDevice): GPUBindGroupLayout {
+function createPrepGenLayout(device: GPUDevice): GPUBindGroupLayout {
   return device.createBindGroupLayout({
-    label: "indirect bind group layout",
+    label: "prep gen bind group layout",
     entries: [
       // load_list
       {
@@ -376,10 +403,11 @@ function createPresentLayout(device: GPUDevice): GPUBindGroupLayout {
 export function createBindGroupLayouts(device: GPUDevice): BindGroupLayouts {
   return {
     movement: createMovementLayout(device),
+    prepUnload: createPrepUnloadLayout(device),
     free: createFreeLayout(device),
     clear: createClearLayout(device),
     compact: createCompactLayout(device),
-    indirect: createIndirectLayout(device),
+    prepGen: createPrepGenLayout(device),
     gen: createGenLayout(device),
     mip: createMipLayout(device),
     renderStatic: createRenderStaticLayout(device),

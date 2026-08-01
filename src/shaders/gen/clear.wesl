@@ -2,7 +2,7 @@ import constants::GEN_SIDE;
 import package::core::{pos, flags};
 import package::gen::core::{UnloadParams, in_wrapped_range};
 
-@group(0) @binding(0) var<uniform> unload_params: UnloadParams;
+@group(0) @binding(0) var<storage, read> unload_params: UnloadParams;
 @group(0) @binding(1) var chunk_index_map: texture_storage_3d<r32uint, write>; 
 @group(0) @binding(2) var<storage, read_write> skip_mip: array<atomic<u32>>;
 

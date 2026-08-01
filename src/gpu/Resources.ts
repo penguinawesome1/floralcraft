@@ -41,7 +41,7 @@ function createFreeList(device: GPUDevice): GPUBuffer {
 export function createResources(device: GPUDevice): Resources {
   const player = device.createBuffer({
     label: "player buffer",
-    size: 32,
+    size: 48,
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
   });
@@ -52,7 +52,7 @@ export function createResources(device: GPUDevice): Resources {
   const unload_params = device.createBuffer({
     label: "unload_params buffer",
     size: 32,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.STORAGE,
   });
 
   const gen_flags = device.createBuffer({

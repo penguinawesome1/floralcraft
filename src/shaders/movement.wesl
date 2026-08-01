@@ -42,6 +42,8 @@ fn _apply_gravity(velocity_y: f32, dt: f32) -> f32 {
 
 @compute @workgroup_size(1, 1, 1)
 fn move_player() {
+    player.prev_pos = player.pos;
+
     let forward_input = _axis(_ARROW_UP_SHIFT, _ARROW_DOWN_SHIFT);
     let right_input = _axis(_ARROW_LEFT_SHIFT, _ARROW_RIGHT_SHIFT);
     let space_held = _is_pressed(_SPACE_SHIFT);

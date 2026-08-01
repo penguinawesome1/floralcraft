@@ -4,9 +4,10 @@ import type { Resources } from "./Resources";
 
 export type StaticBindGroups = {
   movement: GPUBindGroup;
+  prepUnload: GPUBindGroup;
   free: GPUBindGroup;
   clear: GPUBindGroup;
-  indirect: GPUBindGroup;
+  prepGen: GPUBindGroup;
   compact: GPUBindGroup;
   gen: GPUBindGroup;
   mip: GPUBindGroup;
@@ -36,6 +37,22 @@ function createMovementGroup(
       { binding: 1, resource: { buffer: resources.player } },
       { binding: 2, resource: { buffer: resources.chunk_pool } },
       { binding: 3, resource: resources.chunk_index_map.createView() },
+    ],
+  });
+}
+
+function createPrepUnloadGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  resources: Resources,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "prep unload bind group",
+    layout: layouts.prepUnload,
+    entries: [
+      { binding: 0, resource: { buffer: resources.player } },
+      { binding: 1, resource: { buffer: resources.indirect_args } },
+      { binding: 2, resource: { buffer: resources.unload_params } },
     ],
   });
 }
@@ -87,14 +104,14 @@ function createCompactGroup(
   });
 }
 
-function createIndirectGroup(
+function createPrepGenGroup(
   device: GPUDevice,
   layouts: BindGroupLayouts,
   resources: Resources,
 ): GPUBindGroup {
   return device.createBindGroup({
-    label: "indirect bind group",
-    layout: layouts.indirect,
+    label: "prep gen bind group",
+    layout: layouts.prepGen,
     entries: [
       { binding: 0, resource: { buffer: resources.load_list } },
       { binding: 1, resource: { buffer: resources.indirect_args } },
@@ -202,10 +219,11 @@ export function createStaticBindGroups(
 ): StaticBindGroups {
   return {
     movement: createMovementGroup(device, layouts, resources, config),
+    prepUnload: createPrepUnloadGroup(device, layouts, resources),
     free: createFreeGroup(device, layouts, resources),
     clear: createClearGroup(device, layouts, resources),
     compact: createCompactGroup(device, layouts, resources),
-    indirect: createIndirectGroup(device, layouts, resources),
+    prepGen: createPrepGenGroup(device, layouts, resources),
     gen: createGenGroup(device, layouts, resources),
     mip: createMipGroup(device, layouts, resources),
     renderStatic: createRenderStaticGroup(device, layouts, resources, config),

@@ -156,7 +156,7 @@ export class Renderer {
 
     const commandEncoder = this.device.createCommandEncoder();
     this.encodeMovementPass(commandEncoder);
-    this.encodeFreeClearCompactIndirectPass(commandEncoder, qSet);
+    this.encodeFreeClearCompactPrepGenPass(commandEncoder, qSet);
     this.encodeGenPass(commandEncoder, qSet);
     this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
@@ -233,7 +233,7 @@ export class Renderer {
       Number(timestamps[9] - timestamps[8]) / 1_000_000;
 
     console.log(`
-       Free-Clear-Compact-Indirect Pass: ${compactMilliseconds.toFixed(4)} ms\n
+       Free-Clear-Compact-PrepGen Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
        Render Pass: ${renderMilliseconds.toFixed(4)} ms\n
@@ -249,12 +249,12 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeFreeClearCompactIndirectPass(
+  private encodeFreeClearCompactPrepGenPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const pass = commandEncoder.beginComputePass({
-      label: "compact indirect free pass",
+      label: "free clear compact and prep gen pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
@@ -265,67 +265,25 @@ export class Renderer {
           : undefined,
     });
 
-    // const chunkPos = (pos: vec3): vec3 =>
-    //   vec3.fromValues(
-    //     Math.floor(pos[0] / CHUNK_SIDE),
-    //     Math.floor(pos[1] / CHUNK_SIDE),
-    //     Math.floor(pos[2] / CHUNK_SIDE),
-    //   );
+    pass.setPipeline(this.pipelines.prepUnload);
+    pass.setBindGroup(0, this.bindGroups.prepUnload);
+    pass.dispatchWorkgroups(1, 1, 1);
 
-    // const prevChunk = chunkPos(this.camera.prevPos);
-    // const currChunk = chunkPos(this.camera.pos);
+    pass.setPipeline(this.pipelines.free);
+    pass.setBindGroup(0, this.bindGroups.free);
+    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
 
-    // const d = vec3.create();
-    // vec3.sub(d, currChunk, prevChunk);
-
-    // const half = GEN_SIDE / 2;
-    // const origin = new Int32Array(3);
-    // const depths = new Int32Array(3);
-    // let anyAxisNeedsUnload = false;
-
-    // for (let axis = 0; axis < 3; axis++) {
-    //   const delta = d[axis];
-    //   if (delta === 0) continue;
-
-    //   if (delta > 0) {
-    //     origin[axis] = prevChunk[axis] - half;
-    //     depths[axis] = delta;
-    //   } else {
-    //     origin[axis] = currChunk[axis] + half;
-    //     depths[axis] = -delta;
-    //   }
-
-    //   anyAxisNeedsUnload = true;
-    // }
-
-    // if (anyAxisNeedsUnload) {
-    //   const uniformData = new Int32Array(8);
-    //   uniformData.set(origin, 0);
-    //   uniformData.set(depths, 4);
-    //   this.device.queue.writeBuffer(
-    //     this.resources.unload_params,
-    //     0,
-    //     uniformData,
-    //   );
-
-    //   const groups = Math.ceil(GEN_SIDE / 16);
-
-    //   pass.setPipeline(this.pipelines.free);
-    //   pass.setBindGroup(0, this.bindGroups.free);
-    //   pass.dispatchWorkgroups(groups, groups, 1);
-
-    //   pass.setPipeline(this.pipelines.clear);
-    //   pass.setBindGroup(0, this.bindGroups.clear);
-    //   pass.dispatchWorkgroups(groups, groups, 1);
-    // }
+    pass.setPipeline(this.pipelines.clear);
+    pass.setBindGroup(0, this.bindGroups.clear);
+    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
 
     pass.setPipeline(this.pipelines.compact);
     pass.setBindGroup(0, this.bindGroups.compact);
     const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
     pass.dispatchWorkgroups(Math.ceil(totalWords / 128), 1, 1);
 
-    pass.setPipeline(this.pipelines.indirect);
-    pass.setBindGroup(0, this.bindGroups.indirect);
+    pass.setPipeline(this.pipelines.prepGen);
+    pass.setBindGroup(0, this.bindGroups.prepGen);
     pass.dispatchWorkgroups(1, 1, 1);
 
     pass.end();

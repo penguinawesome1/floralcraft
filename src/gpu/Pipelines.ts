@@ -3,10 +3,11 @@ import type { BindGroupLayouts } from "./BindGroupLayouts.ts";
 import { SHADER_CONFIG } from "../core/Config.ts";
 
 import movementWesl from "../shaders/movement.wesl?link";
+import prepUnloadWesl from "../shaders/gen/prep_unload.wesl?link";
 import freeWesl from "../shaders/gen/free.wesl?link";
 import clearWesl from "../shaders/gen/clear.wesl?link";
 import compactWesl from "../shaders/gen/compact.wesl?link";
-import indirectWesl from "../shaders/gen/indirect.wesl?link";
+import prepGenWesl from "../shaders/gen/prep_gen.wesl?link";
 import genWesl from "../shaders/gen/gen.wesl?link";
 import mipWesl from "../shaders/gen/mip.wesl?link";
 import renderWesl from "../shaders/render/render.wesl?link";
@@ -16,10 +17,11 @@ import presentWesl from "../shaders/present.wesl?link";
 
 export type Pipelines = {
   movement: GPUComputePipeline;
+  prepUnload: GPUComputePipeline;
   free: GPUComputePipeline;
   clear: GPUComputePipeline;
   compact: GPUComputePipeline;
-  indirect: GPUComputePipeline;
+  prepGen: GPUComputePipeline;
   gen: GPUComputePipeline;
   mip: GPUComputePipeline;
   render: GPUComputePipeline;
@@ -61,6 +63,21 @@ function createMovementPipeline(
       bindGroupLayouts: [bgLayout],
     }),
     compute: { module, entryPoint: "move_player" },
+  });
+}
+
+function createPrepUnloadPipeline(
+  device: GPUDevice,
+  bgLayout: GPUBindGroupLayout,
+  module: GPUShaderModule,
+): GPUComputePipeline {
+  return device.createComputePipeline({
+    label: "prep unload pipeline",
+    layout: device.createPipelineLayout({
+      label: "prep unload pipeline layout",
+      bindGroupLayouts: [bgLayout],
+    }),
+    compute: { module, entryPoint: "prep_unload" },
   });
 }
 
@@ -109,18 +126,18 @@ function createCompactPipeline(
   });
 }
 
-function createIndirectPipeline(
+function createPrepGenPipeline(
   device: GPUDevice,
   bgLayout: GPUBindGroupLayout,
   module: GPUShaderModule,
 ): GPUComputePipeline {
   return device.createComputePipeline({
-    label: "indirect pipeline",
+    label: "prep gen pipeline",
     layout: device.createPipelineLayout({
-      label: "indirect pipeline layout",
+      label: "prep gen pipeline layout",
       bindGroupLayouts: [bgLayout],
     }),
-    compute: { module, entryPoint: "write_indirect_args" },
+    compute: { module, entryPoint: "prep_gen" },
   });
 }
 
@@ -239,6 +256,11 @@ export async function createPipelines(
     movementWesl,
     "movement shader module",
   );
+  const prepUnloadModule = await loadShaderModule(
+    weslDevice,
+    prepUnloadWesl,
+    "prep unload shader module",
+  );
   const freeModule = await loadShaderModule(
     weslDevice,
     freeWesl,
@@ -254,10 +276,10 @@ export async function createPipelines(
     compactWesl,
     "compact shader module",
   );
-  const indirectModule = await loadShaderModule(
+  const prepGenModule = await loadShaderModule(
     weslDevice,
-    indirectWesl,
-    "indirect shader module",
+    prepGenWesl,
+    "prep gen shader module",
   );
   const genModule = await loadShaderModule(
     weslDevice,
@@ -296,14 +318,15 @@ export async function createPipelines(
       bgLayouts.movement,
       movementModule,
     ),
+    prepUnload: createPrepUnloadPipeline(
+      device,
+      bgLayouts.prepUnload,
+      prepUnloadModule,
+    ),
     free: createFreePipeline(device, bgLayouts.free, freeModule),
     clear: createClearPipeline(device, bgLayouts.clear, clearModule),
     compact: createCompactPipeline(device, bgLayouts.compact, compactModule),
-    indirect: createIndirectPipeline(
-      device,
-      bgLayouts.indirect,
-      indirectModule,
-    ),
+    prepGen: createPrepGenPipeline(device, bgLayouts.prepGen, prepGenModule),
     gen: createGenPipeline(device, bgLayouts.gen, genModule),
     mip: createMipPipeline(device, bgLayouts.mip, mipModule),
     render: createRenderPipeline(
