@@ -1,11 +1,16 @@
 import constants::{CHUNK_SIDE, BITS_PER_ID};
-import package::core::{pos, blocks, noise, flags, flags::ALL_AIR, player::Player};
+import package::core::{pos, blocks, flags, flags::ALL_AIR, player::Player};
 import package::gen::core::{LoadListView, OUT_OF_MEMORY, FreeList};
+import package::gen::terrain_shape;
 
 const _CHUNK_VOLUME = CHUNK_SIDE * CHUNK_SIDE * CHUNK_SIDE;
 const _CHUNK_LEN = _CHUNK_VOLUME * BITS_PER_ID / 32u;
 const _IDS_PER_WORD = 32u / BITS_PER_ID;
 const _COL_LEN = CHUNK_SIDE / _IDS_PER_WORD;
+const _STEEPNESS_SAMPLE_OFFSET = 10i;
+const _STEEPNESS_STONE_THRESHOLD = 50.0;
+const _SURFACE_STONE_THRESHOLD = 10.0;
+const _SURFACE_DIRT_THRESHOLD = 3.0;
 
 @group(0) @binding(0) var<storage, read> load_list: LoadListView;
 @group(0) @binding(1) var<storage, read> player: Player;
@@ -31,30 +36,41 @@ fn _alloc() -> u32 {
     return free_list.indices[slot];
 }
 
+fn _choose_block_id(pos: vec3i, surface_height: f32, steepness: f32) -> u32 {
+    var bid = blocks::AIR;
+    let surface_density = terrain_shape::surface_density(pos, surface_height);
+    if surface_density > 0.0 {
+        let cave_density = terrain_shape::cave_density(pos, surface_height);
+        if cave_density < 1.0 {
+            if surface_density > _SURFACE_STONE_THRESHOLD || steepness > _STEEPNESS_STONE_THRESHOLD {
+                bid = blocks::STONE;
+            } else if surface_density > _SURFACE_DIRT_THRESHOLD {
+                bid = blocks::DIRT;
+            } else {
+                bid = blocks::GRASS;
+            }
+        }
+    }
+    return bid;
+}
+
 fn _gen_column(chunk_pos: vec3i, column_pos: vec3u, temp: ptr<function, array<u32, _COL_LEN>>) -> bool {
     let origin_pos = chunk_pos * i32(CHUNK_SIDE);
-    let pos = vec2f(origin_pos.xz + vec2i(column_pos.xz));
-    let base = noise::terrain_height(pos);
+    let base_pos = origin_pos.xz + vec2i(column_pos.xz);
+    let surface_height = terrain_shape::surface_height(base_pos);
+
+    let height_dx = terrain_shape::surface_height(base_pos + vec2i(_STEEPNESS_SAMPLE_OFFSET, 0));
+    let height_dz = terrain_shape::surface_height(base_pos + vec2i(0, _STEEPNESS_SAMPLE_OFFSET));
+    let steepness = max(abs(height_dx - surface_height), abs(height_dz - surface_height));
+
     var col_is_air = true;
     for (var i = 0u; i < _COL_LEN; i++) {
         let word_base_y = origin_pos.y + i32(i * _IDS_PER_WORD);
         for (var j = 0u; j < _IDS_PER_WORD; j++) {
             let y = word_base_y + i32(j);
-            var block_id = blocks::AIR;
-            let d = noise::terrain_density(vec3f(pos.x, f32(y), pos.y), base);
-            if d > 0.0 {
-                let cave_val = noise::cave_density(vec3f(pos.x, f32(y), pos.y), base);
-                if cave_val < 0.9 {
-                    if d > 0.1 {
-                        block_id = blocks::STONE;
-                    } else if d > 0.025 {
-                        block_id = blocks::DIRT;
-                    } else {
-                        block_id = blocks::GRASS;
-                    }
-                }
-            }
-            (*temp)[i] = insertBits((*temp)[i], block_id, j * BITS_PER_ID, BITS_PER_ID);
+            let pos = vec3i(base_pos.x, i32(y), base_pos.y);
+            let bid = _choose_block_id(pos, surface_height, steepness);
+            (*temp)[i] = insertBits((*temp)[i], bid, j * BITS_PER_ID, BITS_PER_ID);
         }
         if (*temp)[i] != 0u { col_is_air = false; }
     }
@@ -75,7 +91,7 @@ fn gen_chunk(
     let player_chunk = pos::chunk(vec3i(floor(player.pos)));
     let chunk_pos = pos::unwrapped_chunk(wrapped, player_chunk);
     if lid == 0u {
-        if noise::is_definitely_empty(f32(chunk_pos.y * i32(CHUNK_SIDE))) {
+        if terrain_shape::is_definitely_empty(chunk_pos.y * i32(CHUNK_SIDE)) {
             _insert(chunk_pos, ALL_AIR);
             is_alive = false;
         } else {
