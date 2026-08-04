@@ -68,12 +68,26 @@ fn resolve_collision(pos: vec3f, delta: vec3f, vel_y: f32, chunk_map: texture_3d
     if !_is_solid_player_box(res + vec3f(0.0, 0.0, delta.z), chunk_map) { res.z += delta.z; }
 
     let next_y = res + vec3f(0.0, delta.y, 0.0);
-    if _is_solid_player_box(next_y, chunk_map) {
+
+    let feet_y = -PLAYER_EYE_OFFSET;
+    let mid_y = feet_y + (PLAYER_HEIGHT * 0.5);
+    let head_y = PLAYER_HEIGHT - PLAYER_EYE_OFFSET;
+
+    let feet_blocked = _is_solid_at_height(next_y, feet_y, chunk_map);
+    let mid_blocked = _is_solid_at_height(next_y, mid_y, chunk_map);
+    let head_blocked = _is_solid_at_height(next_y, head_y, chunk_map);
+
+    if feet_blocked || mid_blocked {
         res.y = _snap_to_surface(res.y, next_y.y, res, chunk_map);
         out_vel = 0.0;
         grounded = delta.y <= 0.0;
+    } else if head_blocked && delta.y > 0.0 {
+        res.y = res.y;
+        out_vel = 0.0;
+        grounded = false;
     } else {
         res.y += delta.y;
+        grounded = false;
     }
 
     return CollisionResult(res, out_vel, grounded);
