@@ -1,5 +1,3 @@
-const HASH_SINE_SCALE: f32 = 43758.5453123;
-
 fn hash2d_to_1d(p: vec2f) -> f32 {
     let src = bitcast<vec2u>(p);
     var m = src * 1664525u + 1013904223u;
@@ -7,26 +5,31 @@ fn hash2d_to_1d(p: vec2f) -> f32 {
     m.y += m.x * 1664525u;
     m ^= m >> vec2u(16u);
     m.x += m.y * 1664525u;
-    return f32(m.x) * (1.0 / f32(0xffffffffu));
+    return f32(m.x) * (1.0 / 4294967295.0);
 }
 
-const HASH2_DOT1: vec2f = vec2f(127.1, 311.7);
-const HASH2_DOT2: vec2f = vec2f(269.5, 183.3);
 fn _hash2d(p: vec2f) -> vec2f {
-    let p2 = vec2f(dot(p, HASH2_DOT1), dot(p, HASH2_DOT2));
-    return -1.0 + 2.0 * fract(sin(p2) * HASH_SINE_SCALE);
+    var v = vec2u(vec2i(p)) * 1664525u + 1013904223u;
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v ^= v >> vec2u(16u);
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v ^= v >> vec2u(16u);
+    return -1.0 + 2.0 * (vec2f(v) * (1.0 / 4294967295.0));
 }
 
-const HASH3_DOT1: vec3f = vec3f(127.1, 311.7, 74.7);
-const HASH3_DOT2: vec3f = vec3f(269.5, 183.3, 246.1);
-const HASH3_DOT3: vec3f = vec3f(113.5, 271.9, 124.6);
 fn _hash3d(p: vec3f) -> vec3f {
-    let p2 = vec3f(
-        dot(p, HASH3_DOT1),
-        dot(p, HASH3_DOT2),
-        dot(p, HASH3_DOT3)
-    );
-    return -1.0 + 2.0 * fract(sin(p2) * HASH_SINE_SCALE);
+    var v = vec3u(vec3i(p)) * 1664525u + 1013904223u;
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v ^= v >> vec3u(16u);
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v ^= v >> vec3u(16u);
+    return -1.0 + 2.0 * (vec3f(v) * (1.0 / 4294967295.0));
 }
 
 fn simplex2d(p: vec2f) -> f32 {
@@ -38,7 +41,11 @@ fn simplex2d(p: vec2f) -> f32 {
     let b = a - o + K2;
     let c = a - 1.0 + 2.0 * K2;
     let h = max(0.5 - vec3f(dot(a, a), dot(b, b), dot(c, c)), vec3f(0.0));
-    let n = h * h * h * h * vec3f(dot(a, _hash2d(i + 0.0)), dot(b, _hash2d(i + o)), dot(c, _hash2d(i + 1.0)));
+    let n = h * h * h * h * vec3f(
+        dot(a, _hash2d(i + vec2f(0.0))),
+        dot(b, _hash2d(i + o)),
+        dot(c, _hash2d(i + 1.0))
+    );
     return dot(n, vec3f(70.0));
 }
 
