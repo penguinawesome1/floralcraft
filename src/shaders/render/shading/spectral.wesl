@@ -4,6 +4,7 @@ import package::render::shading::cie_data::{CIE_TABLE_SIZE, CIE_TABLE_STEP, cie_
 const _LAMBDA_MIN: f32 = 380.0;
 const _LAMBDA_MAX: f32 = 720.0;
 const _LAMBDA_RANGE: f32 = _LAMBDA_MAX - _LAMBDA_MIN;
+const _CIE_Y_NORMALIZATION: f32 = 3.1638239348804347;
 
 const _XYZ_TO_LINEAR_SRGB: mat3x3f = mat3x3f(
     vec3f(3.2404542, -0.9692660, 0.0556434),
@@ -35,7 +36,7 @@ fn _eval_spectral_coeffs(coeffs: vec3f, lambda: f32) -> f32 {
     return clamp(0.5 * s + 0.5, 0.0, 1.0); // remap to [0,1] reflectance
 }
 
-fn rgb_to_spectrum(coeffs: vec3f, wavelengths: vec4f) -> vec4f {
+fn coeffs_to_spectrum(coeffs: vec3f, wavelengths: vec4f) -> vec4f {
     return vec4f(
         _eval_spectral_coeffs(coeffs, wavelengths.x),
         _eval_spectral_coeffs(coeffs, wavelengths.y),
@@ -57,7 +58,7 @@ fn cie_xyz(wavelengths: vec4f, spectral: vec4f) -> vec3f {
     for (var i = 0u; i < 4u; i++) {
         xyz += _cie_linear_interpolation(wavelengths[i]) * spectral[i];
     }
-    return xyz / 4.0;
+    return (xyz / 4.0) * _CIE_Y_NORMALIZATION;
 }
 
 fn xyz_to_linear_srgb(xyz: vec3f) -> vec3f {

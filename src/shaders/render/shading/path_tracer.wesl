@@ -61,7 +61,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
 
     for (var bounce = 0u; bounce < 3u; bounce++) {
         let material = _block_material(curr_res.block_id);
-        let spectral_albedo = spectral::rgb_to_spectrum(material.spectral_coeffs, wavelengths);
+        let spectral_albedo = spectral::coeffs_to_spectrum(material.spectral_coeffs, wavelengths);
 
         let N = dda::axis_normal(curr_res.last_hit_axis, curr_dir);
         let L = sky::sun_dir();
@@ -92,7 +92,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         }
 
         if material.emission > 0.0 {
-            let emitter_spectrum = spectral::rgb_to_spectrum(material.spectral_coeffs, wavelengths);
+            let emitter_spectrum = spectral::coeffs_to_spectrum(material.spectral_coeffs, wavelengths);
             let emission_spectral = emitter_spectrum * material.emission;
             radiance += emission_spectral * throughput;
             break;
@@ -120,8 +120,8 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
         curr_res = dda::trace(Ray(shadow_origin, next_dir), 32.0);
 
         if curr_res.block_id == blocks::AIR {
-            let sky_color = sky::color(curr_dir);
-            let sky_spectral = spectral::rgb_to_spectrum(sky_color, wavelengths);
+            let sky_coeffs = sky::spectral_coeffs(curr_dir);
+            let sky_spectral = spectral::coeffs_to_spectrum(sky_coeffs, wavelengths);
             radiance += sky_spectral * throughput;
             break;
         }

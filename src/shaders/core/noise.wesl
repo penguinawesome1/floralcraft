@@ -49,7 +49,7 @@ fn simplex2d(p: vec2f) -> f32 {
     return dot(n, vec3f(70.0));
 }
 
-fn _simplex3d(p: vec3f) -> f32 {
+fn simplex3d(p: vec3f) -> f32 {
     let F3 = 1.0 / 3.0;
     let G3 = 1.0 / 6.0;
 
@@ -104,7 +104,7 @@ fn fbm3d(pos: vec3f, octaves: u32) -> f32 {
     var frequency = 1.0;
     var max_value = 0.0;
     for (var i = 0u; i < octaves; i++) {
-        value += _simplex3d(pos * frequency) * amplitude;
+        value += simplex3d(pos * frequency) * amplitude;
         max_value += amplitude;
         amplitude *= 0.5;
         frequency *= 2.0;
