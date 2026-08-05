@@ -19,7 +19,7 @@ fn _ground_drift(pos: vec2f) -> f32 {
 }
 
 const _HILLS_OFFSET = vec2f(-9173.2, 4408.6);
-const _HILLS_FREQ = 1.0 / 700.0;
+const _HILLS_FREQ = 1.0 / 600.0;
 const _HILLS_STEEPNESS = 3.0;
 const _HILLS_AMPLITUDE = 100.0;
 fn _hills(pos: vec2f) -> f32 {

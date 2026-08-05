@@ -10,7 +10,7 @@ export const MAX_CHUNK_BATCH_SIZE = 16384;
 export const MAX_CHUNKS_LOADED = 256_000;
 export const MIP_CAPACITY = Math.ceil(Math.ceil(GEN_SIDE / 2) ** 3 / 32);
 export const CHUNK_LEN = Math.ceil((CHUNK_SIDE ** 3 * BITS_PER_ID) / 32);
-export const PLAYER_SPAWN = vec3.fromValues(0, -50, 0);
+export const PLAYER_SPAWN = vec3.fromValues(0, 0, 0);
 
 export const SHADER_CONFIG = {
   GEN_SIDE,

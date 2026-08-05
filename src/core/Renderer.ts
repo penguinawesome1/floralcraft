@@ -1,6 +1,5 @@
 import { Camera } from "./Camera";
 import { type InputState } from "./Input.ts";
-// import { vec3 } from "gl-matrix";
 import {
   type BindGroupLayouts,
   createBindGroupLayouts,
@@ -17,12 +16,12 @@ import {
   createConfig,
   GEN_SIDE,
   DAY_LENGTH_SECONDS,
-  // CHUNK_SIDE,
   packPendingAction,
+  CHUNK_SIDE,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
 
-const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * 8;
+const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * CHUNK_SIDE;
 const RING_SIZE = 10;
 const RESIZE_DEBOUNCE_MS = 200;
 
@@ -69,7 +68,13 @@ export class Renderer {
     const requiredFeatures: GPUFeatureName[] = this.isProfilingMode
       ? ["timestamp-query"]
       : [];
-    this.device = await adapter.requestDevice({ requiredFeatures });
+    this.device = await adapter.requestDevice({
+      requiredFeatures,
+      requiredLimits: {
+        maxBufferSize: adapter.limits.maxBufferSize,
+        maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      },
+    });
 
     this.context = this.canvas.getContext("webgpu")!;
     this.format = navigator.gpu.getPreferredCanvasFormat();

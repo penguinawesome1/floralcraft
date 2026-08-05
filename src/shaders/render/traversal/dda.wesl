@@ -1,3 +1,4 @@
+import constants::CHUNK_SIDE;
 import package::core::{pos, blocks};
 import package::render::traversal::{lookup, read_pool};
 
@@ -88,7 +89,7 @@ fn trace(ray: Ray, max_trace_dist: f32) -> TraceResult {
     var prev_mip_level = 0u;
     var scale = 0u;
 
-    for (var i = 0u; i < 3000u; i++) {
+    for (var i = 0u; i < 2000u; i++) {
         let new_chunk_pos = pos::chunk(snapped_pos);
         if !is_chunk_found_once || any(new_chunk_pos != chunk_pos) {
             chunk_pos = new_chunk_pos;
@@ -97,7 +98,7 @@ fn trace(ray: Ray, max_trace_dist: f32) -> TraceResult {
                 return TraceResult(ray.origin, snapped_pos, 0.0, blocks::AIR, NO_AXIS);
             }
             if !is_chunk_found_once || lookup_res.mip_level != prev_mip_level {
-                scale = select(1u, 8u << (lookup_res.mip_level - 1u), lookup_res.mip_level > 0u);
+                scale = select(1u, u32(CHUNK_SIDE) << (lookup_res.mip_level - 1u), lookup_res.mip_level > 0u);
                 var next_boundary = vec3i(0);
                 if lookup_res.mip_level == 0u {
                     next_boundary = snapped_pos + vec3i(grid_step > vec3i(0));
