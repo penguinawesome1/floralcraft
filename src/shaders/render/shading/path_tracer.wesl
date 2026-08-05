@@ -2,44 +2,10 @@ import package::render::render::config;
 import package::core::blocks;
 import package::render::traversal::dda::{TraceResult, Ray};
 import package::render::traversal::dda;
-import package::render::shading::{sky, pbr, spectral};
+import package::render::shading::{sky, pbr, spectral, block_material};
 
 const PI = 3.14159265;
 const EPS = 1e-4;
-
-struct BlockMaterial {
-    spectral_coeffs: vec3f,
-    roughness: f32,
-    metallic: f32,
-    f0: f32,
-    emission: f32,
-}
-
-fn _block_material(id: u32) -> BlockMaterial {
-    switch id {
-        case blocks::GRASS: {
-            return BlockMaterial(vec3f(-12.0, 12.0, -2.2), 0.5, 0.0, 0.04, 0.0);
-        }
-        case blocks::DIRT: {
-            return BlockMaterial(vec3f(5.8, 1.2, -4.3), 0.92, 0.0, 0.04, 0.0);
-        }
-        case blocks::STONE: {
-            return BlockMaterial(vec3f(0.5, -0.1, -1.0), 0.65, 0.0, 0.04, 0.0);
-        }
-        case blocks::BEDROCK: {
-            return BlockMaterial(vec3f(0.4, -0.1, -1.7), 0.95, 0.0, 0.04, 0.0);
-        }
-        case blocks::SAND: {
-            return BlockMaterial(vec3f(3.5, 0.6, -0.3), 0.85, 0.0, 0.04, 0.0);
-        }
-        case blocks::MIRROR: {
-            return BlockMaterial(vec3f(1.0, 0.0, 0.0), 0.0, 1.0, 1.0, 0.0);
-        }
-        default: {
-            return BlockMaterial(vec3f(1.0, 1.0, 1.0), 0.0, 0.0, 0.04, 15.0);
-        }
-    }
-}
 
 fn _apply_fog(srgb: vec3f, initial_dir: vec3f, initial_res: TraceResult) -> vec3f {
     let fog_density = 1.8 / config.max_trace_dist;
@@ -60,7 +26,7 @@ fn color(initial_dir: vec3f, initial_res: TraceResult) -> vec4f {
     var throughput = vec4f(1.0);
 
     for (var bounce = 0u; bounce < 3u; bounce++) {
-        let material = _block_material(curr_res.block_id);
+        let material = block_material::lookup(curr_res.block_id);
         let spectral_albedo = spectral::coeffs_to_spectrum(material.spectral_coeffs, wavelengths);
 
         let N = dda::axis_normal(curr_res.last_hit_axis, curr_dir);

@@ -5,9 +5,12 @@ export class Hotbar {
   private slot = 0;
 
   constructor() {
-    this.items[0] = { kind: 1, id: 1 };
-    this.items[1] = { kind: 1, id: 2 };
-    this.items[2] = { kind: 1, id: 3 };
+    for (let i = 0; i < this.items.length; i++) {
+      this.items[i] = {
+        kind: 1,
+        id: i + 1,
+      };
+    }
   }
 
   getHeldItem(): Item {
