@@ -1,4 +1,5 @@
 import { mat4, vec3 } from "gl-matrix";
+import type { Item } from "./Item";
 
 const GEN_SIDE_SHIFT = 8;
 const CHUNK_SIDE_SHIFT = 3;
@@ -32,19 +33,18 @@ type ConfigValues = {
   timeOfDay: number;
   deltaTime: number;
   pendingAction: number;
+  heldItem: Item;
+  inputFlags: number;
 };
 
-export function packPendingAction(
-  action: number,
-  keys: ReadonlySet<string>,
-): number {
-  let packed = action; // bits 0-1
-  if (keys.has("KeyW") || keys.has("ArrowUp")) packed |= 1 << 2;
-  if (keys.has("KeyS") || keys.has("ArrowDown")) packed |= 1 << 3;
-  if (keys.has("KeyA") || keys.has("ArrowLeft")) packed |= 1 << 4;
-  if (keys.has("KeyD") || keys.has("ArrowRight")) packed |= 1 << 5;
-  if (keys.has("Space")) packed |= 1 << 6;
-  if (keys.has("ShiftLeft")) packed |= 1 << 7;
+export function packInputFlags(keys: ReadonlySet<string>): number {
+  let packed = 0;
+  if (keys.has("KeyW") || keys.has("ArrowUp")) packed |= 1;
+  if (keys.has("KeyS") || keys.has("ArrowDown")) packed |= 1 << 1;
+  if (keys.has("KeyA") || keys.has("ArrowLeft")) packed |= 1 << 2;
+  if (keys.has("KeyD") || keys.has("ArrowRight")) packed |= 1 << 3;
+  if (keys.has("Space")) packed |= 1 << 4;
+  if (keys.has("ShiftLeft")) packed |= 1 << 5;
   return packed;
 }
 
@@ -60,6 +60,9 @@ export function createConfig(device: GPUDevice, initial: ConfigValues): Config {
     floatView[18] = values.timeOfDay;
     floatView[19] = values.deltaTime;
     uintView[20] = values.pendingAction;
+    uintView[21] = values.heldItem.kind;
+    uintView[22] = values.heldItem.id;
+    uintView[23] = values.inputFlags;
   }
 
   writeValues(initial);

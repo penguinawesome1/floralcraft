@@ -2,12 +2,12 @@ import package::config::Config;
 import package::core::player::Player;
 import package::core::collision;
 
-const _ARROW_UP_SHIFT = 2u;
-const _ARROW_DOWN_SHIFT = 3u;
-const _ARROW_LEFT_SHIFT = 4u;
-const _ARROW_RIGHT_SHIFT = 5u;
-const _SPACE_SHIFT = 6u;
-const _LEFT_SHIFT_SHIFT = 7u;
+const _ARROW_UP_SHIFT = 0u;
+const _ARROW_DOWN_SHIFT = 1u;
+const _ARROW_LEFT_SHIFT = 2u;
+const _ARROW_RIGHT_SHIFT = 3u;
+const _SPACE_SHIFT = 4u;
+const _LEFT_SHIFT_SHIFT = 5u;
 
 const _WALK_SPEED = 4.317;
 const _SPRINT_SPEED = 7.5; 
@@ -26,7 +26,7 @@ const WAS_SPACE_HELD_MASK = 4u;
 @group(0) @binding(3) var chunk_index_map: texture_3d<u32>;
 
 fn _is_pressed(shift: u32) -> bool {
-    return ((config.pending_action >> shift) & 1u) == 1u;
+    return ((config.input_flags >> shift) & 1u) == 1u;
 }
 
 fn _axis(neg_shift: u32, pos_shift: u32) -> f32 {

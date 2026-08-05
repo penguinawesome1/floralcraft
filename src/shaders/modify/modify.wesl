@@ -39,8 +39,8 @@ fn _chunk_addr(local_pos: vec3u) -> _ChunkAddr {
 @compute @workgroup_size(1, 1, 1)
 fn modify_target_block() {
     alloc_result.is_store_needed = 0u;
-    if (config.pending_action & 0x3) == 0u || block_target.is_block_hit == 0u { return; }
-    let is_placing = (config.pending_action & 0x3) == 2u;
+    if config.pending_action == 0u || block_target.is_block_hit == 0u { return; }
+    let is_placing = config.pending_action == 2u && config.held_item_kind == 1u;
     if is_placing && collision::is_overlap(player.pos, block_target.pos) { return; }
 
     let chunk_pos = pos::chunk(block_target.pos);
@@ -64,7 +64,7 @@ fn modify_target_block() {
     let chunk_base_idx = chunk_num * CHUNK_LEN;
 
     if is_placing {
-        chunk_pool[chunk_base_idx + addr.word_idx] |= (blocks::MIRROR << addr.bit_idx);
+        chunk_pool[chunk_base_idx + addr.word_idx] |= (config.held_item_id << addr.bit_idx);
     } else {
         chunk_pool[chunk_base_idx + addr.word_idx] &= ~(BLOCK_MASK << addr.bit_idx);
     }

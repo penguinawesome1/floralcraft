@@ -1,5 +1,5 @@
 import { Camera } from "./Camera";
-import { type InputState } from "./Input.ts";
+import type { InputState } from "./Input.ts";
 import {
   type BindGroupLayouts,
   createBindGroupLayouts,
@@ -16,10 +16,11 @@ import {
   createConfig,
   GEN_SIDE,
   DAY_LENGTH_SECONDS,
-  packPendingAction,
+  packInputFlags,
   CHUNK_SIDE,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
+import type { Item } from "./Item.ts";
 
 const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * CHUNK_SIDE;
 const RING_SIZE = 10;
@@ -55,7 +56,7 @@ export class Renderer {
     this.canvas = canvas;
   }
 
-  async init(): Promise<void> {
+  async init(heldItem: Item): Promise<void> {
     if (!navigator.gpu) throw new Error("WebGPU not supported");
 
     const adapter = await navigator.gpu.requestAdapter();
@@ -83,6 +84,7 @@ export class Renderer {
       minFilter: "nearest",
       mipmapFilter: "nearest",
     });
+
     this.config = createConfig(this.device, {
       camRotation: this.camera.rotation,
       camYaw: this.camera.yaw,
@@ -90,6 +92,8 @@ export class Renderer {
       timeOfDay: 0.5,
       deltaTime: 0.0,
       pendingAction: 0,
+      heldItem,
+      inputFlags: 0,
     });
 
     this.bindGroupLayouts = createBindGroupLayouts(this.device);
@@ -122,7 +126,7 @@ export class Renderer {
     return (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
   }
 
-  update(inputState: InputState): void {
+  update(inputState: InputState, heldItem: Item): void {
     if (inputState.keys.has("BracketLeft")) {
       this.maxTraceDist /= 1.05;
       this.maxTraceDist = Math.max(50, this.maxTraceDist);
@@ -143,10 +147,9 @@ export class Renderer {
       timeOfDay,
       maxTraceDist: this.maxTraceDist,
       deltaTime,
-      pendingAction: packPendingAction(
-        inputState.pendingAction,
-        inputState.keys,
-      ),
+      pendingAction: inputState.pendingAction,
+      heldItem,
+      inputFlags: packInputFlags(inputState.keys),
     });
   }
 

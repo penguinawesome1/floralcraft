@@ -83,6 +83,7 @@
   position: relative; /* anchor for the crosshair's absolute positioning */
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
 }
 
 #crosshair {
@@ -95,4 +96,12 @@
   background: white;
   mix-blend-mode: difference;
   pointer-events: none;
+}
+
+#held-item {
+  position: absolute;
+  bottom: -1rem;
+  right: 1rem;
+  width: 4rem;
+  transform: rotate(10deg);
 }

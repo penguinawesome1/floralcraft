@@ -40,7 +40,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
 
     let crosshair_px = canvas_size / 2u;
     if all(px.xy == crosshair_px) {
-        let is_valid_target = (config.pending_action & 0x3) != 0u
+        let is_valid_target = config.pending_action != 0u
             && res.block_id != blocks::AIR;
 
         block_target.is_block_hit = u32(is_valid_target);
@@ -49,7 +49,7 @@ fn render(@builtin(global_invocation_id) px: vec3u) {
             block_target.pos = select(
                 res.snapped_pos + axis_offset,
                 res.snapped_pos,
-                (config.pending_action & 0x3) == 1u
+                config.pending_action == 1u
             );
         }
     }

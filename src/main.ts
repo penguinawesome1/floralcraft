@@ -3,14 +3,16 @@ import { Renderer } from "./core/Renderer.ts";
 import { InputManager } from "./core/Input.ts";
 import thanksgivingLoveUrl from "./assets/audio/thanksgiving-love.m4a";
 import nightTrackUrl from "./assets/audio/12-am.m4a";
+import { Hotbar } from "./core/Hotbar.ts";
 
 class GameApp {
   private readonly canvas: HTMLCanvasElement;
   private readonly loadingScreen: HTMLDivElement;
   private readonly inputManager: InputManager;
   private readonly renderer: Renderer;
-  private readonly daytimeTrack: HTMLAudioElement;
-  private readonly nighttimeTrack: HTMLAudioElement;
+  private readonly daytimeTrack = new Audio(thanksgivingLoveUrl);
+  private readonly nighttimeTrack = new Audio(nightTrackUrl);
+  private readonly hotbar = new Hotbar();
   private currentTrack: HTMLAudioElement | null = null;
   private isFading = false;
   private progressText: HTMLElement;
@@ -23,9 +25,7 @@ class GameApp {
     this.inputManager = new InputManager(this.canvas);
     this.renderer = new Renderer(this.canvas);
 
-    this.daytimeTrack = new Audio(thanksgivingLoveUrl);
     this.daytimeTrack.loop = true;
-    this.nighttimeTrack = new Audio(nightTrackUrl);
     this.nighttimeTrack.loop = true;
     this.currentTrack = this.daytimeTrack;
 
@@ -38,7 +38,7 @@ class GameApp {
 
   async init() {
     try {
-      await this.renderer.init();
+      await this.renderer.init(this.hotbar.getHeldItem());
     } catch (e) {
       this.progressText.textContent =
         e instanceof Error ? e.message : "Unknown error";
@@ -131,7 +131,8 @@ class GameApp {
 
   private readonly gameLoop = (_time: number) => {
     const inputState = this.inputManager.poll();
-    this.renderer.update(inputState);
+    this.hotbar.updateSlot(inputState.keys);
+    this.renderer.update(inputState, this.hotbar.getHeldItem());
 
     const timeOfDay = this.renderer.getTimeOfDay();
     const target =
