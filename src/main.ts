@@ -1,9 +1,9 @@
 import "./styles.css";
 import { Renderer } from "./core/Renderer.ts";
-import { InputManager } from "./core/Input.ts";
+import { InputManager } from "./player/Input.ts";
 import thanksgivingLoveUrl from "./assets/audio/thanksgiving-love.m4a";
 import nightTrackUrl from "./assets/audio/12-am.m4a";
-import { Hotbar } from "./core/Hotbar.ts";
+import { Hotbar } from "./player/Hotbar.ts";
 
 class GameApp {
   private readonly canvas: HTMLCanvasElement;

@@ -1,5 +1,5 @@
-import { Camera } from "./Camera";
-import type { InputState } from "./Input.ts";
+import { Camera } from "../player/Camera.ts";
+import type { InputState } from "../player/Input.ts";
 import {
   type BindGroupLayouts,
   createBindGroupLayouts,
@@ -20,7 +20,7 @@ import {
   CHUNK_SIDE,
 } from "./Config.ts";
 import { Clock } from "../core/Clock.ts";
-import type { Item } from "./Item.ts";
+import type { Item } from "../player/Item.ts";
 
 const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * CHUNK_SIDE;
 const RING_SIZE = 10;

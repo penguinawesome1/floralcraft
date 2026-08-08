@@ -1,5 +1,5 @@
 import { mat4, vec3 } from "gl-matrix";
-import type { Item } from "./Item";
+import type { Item } from "../player/Item";
 
 const GEN_SIDE_SHIFT = 8;
 const CHUNK_SIDE_SHIFT = 3;
