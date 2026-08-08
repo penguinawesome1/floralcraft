@@ -30,6 +30,7 @@ export class Renderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly clock = new Clock();
   private readonly camera = new Camera(0.002);
+  private readonly timestamps = new BigInt64Array(10);
   private resizeDebounce: ReturnType<typeof setTimeout> | undefined;
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
@@ -164,7 +165,7 @@ export class Renderer {
 
     const commandEncoder = this.device.createCommandEncoder();
     this.encodeMovementPass(commandEncoder);
-    this.encodeFreeClearCompactPrepGenPass(commandEncoder, qSet);
+    this.encodeUnloadReclaimPass(commandEncoder, qSet);
     this.encodeGenPass(commandEncoder, qSet);
     this.encodeMipPass(commandEncoder, qSet);
     commandEncoder.clearBuffer(this.resources.gen_flags);
@@ -227,21 +228,23 @@ export class Renderer {
     const rBuf = this.readBuffers[idx];
     await rBuf.mapAsync(GPUMapMode.READ);
 
-    const arrayBuffer = rBuf.getMappedRange();
-    const timestamps = new BigInt64Array(arrayBuffer.slice(0));
+    const mappedView = new BigInt64Array(rBuf.getMappedRange());
+    this.timestamps.set(mappedView);
     rBuf.unmap();
 
     const compactMilliseconds =
-      Number(timestamps[1] - timestamps[0]) / 1_000_000;
-    const genMilliseconds = Number(timestamps[3] - timestamps[2]) / 1_000_000;
-    const mipMilliseconds = Number(timestamps[5] - timestamps[4]) / 1_000_000;
+      Number(this.timestamps[1] - this.timestamps[0]) / 1_000_000;
+    const genMilliseconds =
+      Number(this.timestamps[3] - this.timestamps[2]) / 1_000_000;
+    const mipMilliseconds =
+      Number(this.timestamps[5] - this.timestamps[4]) / 1_000_000;
     const renderMilliseconds =
-      Number(timestamps[7] - timestamps[6]) / 1_000_000;
+      Number(this.timestamps[7] - this.timestamps[6]) / 1_000_000;
     const presentMilliseconds =
-      Number(timestamps[9] - timestamps[8]) / 1_000_000;
+      Number(this.timestamps[9] - this.timestamps[8]) / 1_000_000;
 
     console.log(`
-       Free-Clear-Compact-PrepGen Pass: ${compactMilliseconds.toFixed(4)} ms\n
+       Unload Reclaim Pass: ${compactMilliseconds.toFixed(4)} ms\n
        Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
        Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
        Render Pass: ${renderMilliseconds.toFixed(4)} ms\n
@@ -257,12 +260,12 @@ export class Renderer {
     pass.end();
   }
 
-  private encodeFreeClearCompactPrepGenPass(
+  private encodeUnloadReclaimPass(
     commandEncoder: GPUCommandEncoder,
     querySet?: GPUQuerySet,
   ): void {
     const pass = commandEncoder.beginComputePass({
-      label: "free clear compact and prep gen pass",
+      label: "unload reclaim pass",
       timestampWrites:
         this.isProfilingMode && querySet
           ? {
