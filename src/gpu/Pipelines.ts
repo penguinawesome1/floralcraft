@@ -242,7 +242,6 @@ function createPresentPipeline(
     primitive: { topology: "triangle-list" },
   });
 }
-
 export async function createPipelines(
   device: GPUDevice,
   format: GPUTextureFormat,
@@ -251,66 +250,33 @@ export async function createPipelines(
 ): Promise<Pipelines> {
   const weslDevice = makeWeslDevice(device);
 
-  const movementModule = await loadShaderModule(
-    weslDevice,
-    movementWesl,
-    "movement shader module",
-  );
-  const prepUnloadModule = await loadShaderModule(
-    weslDevice,
-    prepUnloadWesl,
-    "prep unload shader module",
-  );
-  const freeModule = await loadShaderModule(
-    weslDevice,
-    freeWesl,
-    "free shader module",
-  );
-  const clearModule = await loadShaderModule(
-    weslDevice,
-    clearWesl,
-    "clear shader module",
-  );
-  const compactModule = await loadShaderModule(
-    weslDevice,
-    compactWesl,
-    "compact shader module",
-  );
-  const prepGenModule = await loadShaderModule(
-    weslDevice,
-    prepGenWesl,
-    "prep gen shader module",
-  );
-  const genModule = await loadShaderModule(
-    weslDevice,
-    genWesl,
-    "gen shader module",
-  );
-  const mipModule = await loadShaderModule(
-    weslDevice,
-    mipWesl,
-    "mip shader module",
-  );
-  const renderModule = await loadShaderModule(
-    weslDevice,
-    renderWesl,
-    "render shader module",
-  );
-  const modifyModule = await loadShaderModule(
-    weslDevice,
-    modifyWesl,
-    "modify shader module",
-  );
-  const storeModule = await loadShaderModule(
-    weslDevice,
-    storeWesl,
-    "store shader module",
-  );
-  const presentModule = await loadShaderModule(
-    weslDevice,
-    presentWesl,
-    "present shader module",
-  );
+  const [
+    movementModule,
+    prepUnloadModule,
+    freeModule,
+    clearModule,
+    compactModule,
+    prepGenModule,
+    genModule,
+    mipModule,
+    renderModule,
+    modifyModule,
+    storeModule,
+    presentModule,
+  ] = await Promise.all([
+    loadShaderModule(weslDevice, movementWesl, "movement shader module"),
+    loadShaderModule(weslDevice, prepUnloadWesl, "prep unload shader module"),
+    loadShaderModule(weslDevice, freeWesl, "free shader module"),
+    loadShaderModule(weslDevice, clearWesl, "clear shader module"),
+    loadShaderModule(weslDevice, compactWesl, "compact shader module"),
+    loadShaderModule(weslDevice, prepGenWesl, "prep gen shader module"),
+    loadShaderModule(weslDevice, genWesl, "gen shader module"),
+    loadShaderModule(weslDevice, mipWesl, "mip shader module"),
+    loadShaderModule(weslDevice, renderWesl, "render shader module"),
+    loadShaderModule(weslDevice, modifyWesl, "modify shader module"),
+    loadShaderModule(weslDevice, storeWesl, "store shader module"),
+    loadShaderModule(weslDevice, presentWesl, "present shader module"),
+  ]);
 
   return {
     movement: createMovementPipeline(
