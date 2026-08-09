@@ -2,7 +2,7 @@ import type { Config } from "../core/Config";
 import type { BindGroupLayouts } from "./BindGroupLayouts";
 import type { Resources } from "./Resources";
 
-export type StaticBindGroups = {
+type StaticBindGroups = {
   movement: GPUBindGroup;
   prepUnload: GPUBindGroup;
   free: GPUBindGroup;
@@ -16,7 +16,7 @@ export type StaticBindGroups = {
   renderStatic: GPUBindGroup;
 };
 
-export type DynamicBindGroups = {
+type DynamicBindGroups = {
   renderDynamic: GPUBindGroup;
   present: GPUBindGroup;
 };
@@ -229,5 +229,52 @@ export function createStaticBindGroups(
     renderStatic: createRenderStaticGroup(device, layouts, resources, config),
     modify: createModifyGroup(device, layouts, resources, config),
     store: createStoreGroup(device, layouts, resources),
+  };
+}
+
+function createRenderDynamicGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  renderTargetView: GPUTextureView,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "render dynamic bind group",
+    layout: layouts.renderDynamic,
+    entries: [{ binding: 0, resource: renderTargetView }],
+  });
+}
+
+function createPresentGroup(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  renderTargetView: GPUTextureView,
+  canvasSampler: GPUSampler,
+): GPUBindGroup {
+  return device.createBindGroup({
+    label: "present bind group",
+    layout: layouts.present,
+    entries: [
+      { binding: 0, resource: renderTargetView },
+      { binding: 1, resource: canvasSampler },
+    ],
+  });
+}
+
+export function createDynamicBindGroups(
+  device: GPUDevice,
+  layouts: BindGroupLayouts,
+  renderTarget: GPUTexture,
+  canvasSampler: GPUSampler,
+): DynamicBindGroups {
+  const renderTargetView = renderTarget.createView();
+
+  return {
+    renderDynamic: createRenderDynamicGroup(device, layouts, renderTargetView),
+    present: createPresentGroup(
+      device,
+      layouts,
+      renderTargetView,
+      canvasSampler,
+    ),
   };
 }

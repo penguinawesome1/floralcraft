@@ -4,6 +4,7 @@ import { InputManager } from "./player/Input.ts";
 import thanksgivingLoveUrl from "./assets/audio/thanksgiving-love.m4a";
 import nightTrackUrl from "./assets/audio/12-am.m4a";
 import { Hotbar } from "./player/Hotbar.ts";
+import { Clock } from "./core/Clock.ts";
 
 class GameApp {
   private readonly canvas: HTMLCanvasElement;
@@ -13,6 +14,7 @@ class GameApp {
   private readonly daytimeTrack = new Audio(thanksgivingLoveUrl);
   private readonly nighttimeTrack = new Audio(nightTrackUrl);
   private readonly hotbar = new Hotbar();
+  private readonly clock = new Clock();
   private currentTrack: HTMLAudioElement | null = null;
   private isFading = false;
   private progressText: HTMLElement;
@@ -132,9 +134,16 @@ class GameApp {
   private readonly gameLoop = (_time: number) => {
     const inputState = this.inputManager.poll();
     this.hotbar.updateSlot(inputState.keys);
-    this.renderer.update(inputState, this.hotbar.getHeldItem());
 
-    const timeOfDay = this.renderer.getTimeOfDay();
+    const deltaTime = this.clock.update();
+    const timeOfDay = this.clock.getTimeOfDay();
+    this.renderer.update(
+      inputState,
+      this.hotbar.getHeldItem(),
+      deltaTime,
+      timeOfDay,
+    );
+
     const target =
       timeOfDay > 0.25 && timeOfDay < 0.75
         ? this.daytimeTrack

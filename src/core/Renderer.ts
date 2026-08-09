@@ -6,7 +6,7 @@ import {
 } from "../gpu/BindGroupLayouts.ts";
 import {
   type BindGroups,
-  type DynamicBindGroups,
+  createDynamicBindGroups,
   createStaticBindGroups,
 } from "../gpu/BindGroups.ts";
 import { type Resources, createResources } from "../gpu/Resources.ts";
@@ -15,12 +15,11 @@ import {
   type Config,
   createConfig,
   GEN_SIDE,
-  DAY_LENGTH_SECONDS,
   packInputFlags,
   CHUNK_SIDE,
 } from "./Config.ts";
-import { Clock } from "../core/Clock.ts";
 import type { Item } from "../player/Item.ts";
+import { FrameEncoder } from "./FrameEncoder.ts";
 
 const CAPPED_MAX_TRACE_DIST = (GEN_SIDE / 2 - 1) * CHUNK_SIDE;
 const RING_SIZE = 10;
@@ -28,7 +27,6 @@ const RESIZE_DEBOUNCE_MS = 200;
 
 export class Renderer {
   private readonly canvas: HTMLCanvasElement;
-  private readonly clock = new Clock();
   private readonly camera = new Camera(0.002);
   private readonly timestamps = new BigInt64Array(10);
   private resizeDebounce: ReturnType<typeof setTimeout> | undefined;
@@ -38,6 +36,7 @@ export class Renderer {
   private canvasSampler!: GPUSampler;
   private renderTarget!: GPUTexture;
   private config!: Config;
+  private frameEncoder!: FrameEncoder;
   private maxTraceDist = CAPPED_MAX_TRACE_DIST;
 
   private resources!: Resources;
@@ -115,6 +114,14 @@ export class Renderer {
 
     this.createProfilingResources();
 
+    this.frameEncoder = new FrameEncoder(
+      this.pipelines,
+      this.bindGroups,
+      this.resources,
+      this.context,
+      this.isProfilingMode,
+    );
+
     const observer = new ResizeObserver(() => {
       clearTimeout(this.resizeDebounce);
       this.resizeDebounce = setTimeout(() => this.resize(), RESIZE_DEBOUNCE_MS);
@@ -123,11 +130,12 @@ export class Renderer {
     this.resize();
   }
 
-  public getTimeOfDay(): number {
-    return (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
-  }
-
-  update(inputState: InputState, heldItem: Item): void {
+  update(
+    inputState: InputState,
+    heldItem: Item,
+    deltaTime: number,
+    timeOfDay: number,
+  ): void {
     if (inputState.keys.has("BracketLeft")) {
       this.maxTraceDist /= 1.05;
       this.maxTraceDist = Math.max(50, this.maxTraceDist);
@@ -138,9 +146,6 @@ export class Renderer {
     }
 
     this.camera.update(inputState.deltaX, inputState.deltaY);
-
-    const deltaTime = this.clock.update();
-    let timeOfDay = (this.clock.elapsedSeconds / DAY_LENGTH_SECONDS + 0.5) % 1;
 
     this.config.update(this.device.queue, {
       camRotation: this.camera.rotation,
@@ -164,15 +169,12 @@ export class Renderer {
     const qSet = slotAvailable ? this.querySets[ringIdx] : undefined;
 
     const commandEncoder = this.device.createCommandEncoder();
-    this.encodeMovementPass(commandEncoder);
-    this.encodeUnloadReclaimPass(commandEncoder, qSet);
-    this.encodeGenPass(commandEncoder, qSet);
-    this.encodeMipPass(commandEncoder, qSet);
-    commandEncoder.clearBuffer(this.resources.gen_flags);
-    commandEncoder.clearBuffer(this.resources.load_list);
-    this.encodeRenderPass(commandEncoder, qSet);
-    this.encodeModifyStorePass(commandEncoder);
-    this.encodePresentPass(commandEncoder, qSet);
+    this.frameEncoder.encode(
+      commandEncoder,
+      this.canvas.width,
+      this.canvas.height,
+      qSet,
+    );
 
     if (qSet) {
       const qBuf = this.queryBuffers[ringIdx];
@@ -232,184 +234,22 @@ export class Renderer {
     this.timestamps.set(mappedView);
     rBuf.unmap();
 
-    const compactMilliseconds =
+    const unloadReclaimMs =
       Number(this.timestamps[1] - this.timestamps[0]) / 1_000_000;
-    const genMilliseconds =
-      Number(this.timestamps[3] - this.timestamps[2]) / 1_000_000;
-    const mipMilliseconds =
-      Number(this.timestamps[5] - this.timestamps[4]) / 1_000_000;
-    const renderMilliseconds =
+    const genMs = Number(this.timestamps[3] - this.timestamps[2]) / 1_000_000;
+    const mipMs = Number(this.timestamps[5] - this.timestamps[4]) / 1_000_000;
+    const renderMs =
       Number(this.timestamps[7] - this.timestamps[6]) / 1_000_000;
-    const presentMilliseconds =
+    const presentMs =
       Number(this.timestamps[9] - this.timestamps[8]) / 1_000_000;
 
     console.log(`
-       Unload Reclaim Pass: ${compactMilliseconds.toFixed(4)} ms\n
-       Gen Pass: ${genMilliseconds.toFixed(4)} ms\n
-       Mip Pass: ${mipMilliseconds.toFixed(4)} ms\n
-       Render Pass: ${renderMilliseconds.toFixed(4)} ms\n
-       Present Pass: ${presentMilliseconds.toFixed(4)} ms
+       Unload Reclaim Pass: ${unloadReclaimMs.toFixed(4)} ms\n
+       Gen Pass: ${genMs.toFixed(4)} ms\n
+       Mip Pass: ${mipMs.toFixed(4)} ms\n
+       Render Pass: ${renderMs.toFixed(4)} ms\n
+       Present Pass: ${presentMs.toFixed(4)} ms
      `);
-  }
-
-  private encodeMovementPass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass({ label: "movement pass" });
-    pass.setPipeline(this.pipelines.movement);
-    pass.setBindGroup(0, this.bindGroups.movement);
-    pass.dispatchWorkgroups(1, 1, 1);
-    pass.end();
-  }
-
-  private encodeUnloadReclaimPass(
-    commandEncoder: GPUCommandEncoder,
-    querySet?: GPUQuerySet,
-  ): void {
-    const pass = commandEncoder.beginComputePass({
-      label: "unload reclaim pass",
-      timestampWrites:
-        this.isProfilingMode && querySet
-          ? {
-              querySet,
-              beginningOfPassWriteIndex: 0,
-              endOfPassWriteIndex: 1,
-            }
-          : undefined,
-    });
-
-    pass.setPipeline(this.pipelines.prepUnload);
-    pass.setBindGroup(0, this.bindGroups.prepUnload);
-    pass.dispatchWorkgroups(1, 1, 1);
-
-    pass.setPipeline(this.pipelines.free);
-    pass.setBindGroup(0, this.bindGroups.free);
-    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
-
-    pass.setPipeline(this.pipelines.clear);
-    pass.setBindGroup(0, this.bindGroups.clear);
-    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
-
-    pass.setPipeline(this.pipelines.compact);
-    pass.setBindGroup(0, this.bindGroups.compact);
-    const totalWords = Math.ceil(GEN_SIDE ** 3 / 32);
-    pass.dispatchWorkgroups(Math.ceil(totalWords / 128), 1, 1);
-
-    pass.setPipeline(this.pipelines.prepGen);
-    pass.setBindGroup(0, this.bindGroups.prepGen);
-    pass.dispatchWorkgroups(1, 1, 1);
-
-    pass.end();
-  }
-
-  private encodeGenPass(
-    commandEncoder: GPUCommandEncoder,
-    querySet?: GPUQuerySet,
-  ): void {
-    const pass = commandEncoder.beginComputePass({
-      label: "gen pass",
-      timestampWrites:
-        this.isProfilingMode && querySet
-          ? {
-              querySet,
-              beginningOfPassWriteIndex: 2,
-              endOfPassWriteIndex: 3,
-            }
-          : undefined,
-    });
-    pass.setPipeline(this.pipelines.gen);
-    pass.setBindGroup(0, this.bindGroups.gen);
-    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 0);
-    pass.end();
-  }
-
-  private encodeMipPass(
-    commandEncoder: GPUCommandEncoder,
-    querySet?: GPUQuerySet,
-  ): void {
-    const pass = commandEncoder.beginComputePass({
-      label: "mip pass",
-      timestampWrites:
-        this.isProfilingMode && querySet
-          ? {
-              querySet,
-              beginningOfPassWriteIndex: 4,
-              endOfPassWriteIndex: 5,
-            }
-          : undefined,
-    });
-    pass.setPipeline(this.pipelines.mip);
-    pass.setBindGroup(0, this.bindGroups.mip);
-    pass.dispatchWorkgroupsIndirect(this.resources.indirect_args, 12);
-    pass.end();
-  }
-
-  private encodeRenderPass(
-    commandEncoder: GPUCommandEncoder,
-    querySet?: GPUQuerySet,
-  ): void {
-    const pass = commandEncoder.beginComputePass({
-      label: "render pass",
-      timestampWrites:
-        this.isProfilingMode && querySet
-          ? {
-              querySet,
-              beginningOfPassWriteIndex: 6,
-              endOfPassWriteIndex: 7,
-            }
-          : undefined,
-    });
-    pass.setPipeline(this.pipelines.render);
-    pass.setBindGroup(0, this.bindGroups.renderStatic);
-    pass.setBindGroup(1, this.bindGroups.renderDynamic);
-    pass.dispatchWorkgroups(
-      Math.ceil(this.canvas.width / 8),
-      Math.ceil(this.canvas.height / 8),
-    );
-    pass.end();
-  }
-
-  private encodeModifyStorePass(commandEncoder: GPUCommandEncoder): void {
-    const pass = commandEncoder.beginComputePass({
-      label: "modify store pass",
-    });
-
-    pass.setPipeline(this.pipelines.modify);
-    pass.setBindGroup(0, this.bindGroups.modify);
-    pass.dispatchWorkgroups(1, 1, 1);
-
-    pass.setBindGroup(0, this.bindGroups.store);
-    pass.setPipeline(this.pipelines.store);
-    pass.dispatchWorkgroups(1, 1, 1);
-
-    pass.end();
-  }
-
-  private encodePresentPass(
-    commandEncoder: GPUCommandEncoder,
-    querySet?: GPUQuerySet,
-  ): void {
-    const canvasTextureView = this.context.getCurrentTexture().createView();
-    const pass = commandEncoder.beginRenderPass({
-      label: "present pass",
-      timestampWrites:
-        this.isProfilingMode && querySet
-          ? {
-              querySet,
-              beginningOfPassWriteIndex: 8,
-              endOfPassWriteIndex: 9,
-            }
-          : undefined,
-      colorAttachments: [
-        {
-          view: canvasTextureView,
-          loadOp: "load",
-          storeOp: "store",
-        },
-      ],
-    });
-    pass.setPipeline(this.pipelines.present);
-    pass.setBindGroup(0, this.bindGroups.present);
-    pass.draw(3);
-    pass.end();
   }
 
   private resize(): void {
@@ -441,27 +281,22 @@ export class Renderer {
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
     });
 
-    this.bindGroups = { ...this.bindGroups, ...this.createDynamicBindGroups() };
-  }
+    this.bindGroups = {
+      ...this.bindGroups,
+      ...createDynamicBindGroups(
+        this.device,
+        this.bindGroupLayouts,
+        this.renderTarget,
+        this.canvasSampler,
+      ),
+    };
 
-  private createDynamicBindGroups(): DynamicBindGroups {
-    const renderTargetView = this.renderTarget.createView();
-
-    const renderDynamic = this.device.createBindGroup({
-      label: "render dynamic bind group",
-      layout: this.bindGroupLayouts.renderDynamic,
-      entries: [{ binding: 0, resource: renderTargetView }],
-    });
-
-    const present = this.device.createBindGroup({
-      label: "present bind group",
-      layout: this.bindGroupLayouts.present,
-      entries: [
-        { binding: 0, resource: renderTargetView },
-        { binding: 1, resource: this.canvasSampler },
-      ],
-    });
-
-    return { renderDynamic, present };
+    this.frameEncoder = new FrameEncoder(
+      this.pipelines,
+      this.bindGroups,
+      this.resources,
+      this.context,
+      this.isProfilingMode,
+    );
   }
 }
